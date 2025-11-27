@@ -23,10 +23,20 @@ import {
 	ApiRoles,
 	ApiRoleEnum as Role,
 } from '@/hooks/getServerSessionAuthorization'
+import { partnerAllowedRoles } from '@/constants/partner-rbac'
 
 export default function SideBar() {
 	const { session } = useSessionAuthorization()
 	const role = session?.data?.role?.toLowerCase() as Lowercase<ApiRoles>
+	const partnerAllowedNonOferta = partnerAllowedRoles.filter(
+		r => r !== Role.OFERTA
+	) as ApiRoles[]
+	const partnerMenu = (
+		<MenuSection title="Parceiros" Icon={SettingsIcon}>
+			<MenuItem href="/partners/create">Cadastrar parceiro</MenuItem>
+			<MenuItem href="/partners">Listar parceiros</MenuItem>
+		</MenuSection>
+	)
 
 	return (
 		<div className="flex flex-col justify-between w-full h-full p-4">
@@ -95,6 +105,14 @@ export default function SideBar() {
 								</RoleBasedRender>
 								<MenuItem href="/dashboard/table">Em andamento</MenuItem>
 							</MenuSection>
+						</RoleBasedRender>
+						<RoleBasedRender
+							role={role}
+							allowedRoles={
+								role === Role.OFERTA ? [Role.OFERTA] : partnerAllowedNonOferta
+							}
+						>
+							{partnerMenu}
 						</RoleBasedRender>
 						{/* <MenuSection title="Backup" Icon={SaveIcon}>
 							<MenuItem href="/">Realizar Backup</MenuItem>
