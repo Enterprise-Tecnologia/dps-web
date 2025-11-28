@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import PartnerList from '@/components/partners/partner-list'
 import getServerSessionAuthorization from '@/hooks/getServerSessionAuthorization'
 import { partnerAllowedRoles } from '@/constants/partner-rbac'
 
@@ -21,7 +22,7 @@ export default async function PartnersPage() {
 					<div>
 						<h3 className="text-primary font-semibold">Listar parceiros</h3>
 						<p className="text-sm text-muted-foreground mt-2">
-							Página em construção para gestão de parceiros.
+							Registros salvos localmente até o backend ficar pronto.
 						</p>
 					</div>
 					<Button asChild>
@@ -30,13 +31,7 @@ export default async function PartnersPage() {
 				</header>
 
 				<div className="bg-white rounded-2xl shadow-sm border p-6">
-					<div className="text-muted-foreground space-y-2">
-						<p className="text-base">Em breve exibiremos a listagem de parceiros.</p>
-						<p className="text-sm">
-							Use o atalho acima para cadastrar um novo parceiro enquanto a tabela não é
-							finalizada.
-						</p>
-					</div>
+					<PartnerList />
 				</div>
 			</div>
 		</div>

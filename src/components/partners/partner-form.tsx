@@ -20,6 +20,7 @@ import {
 	AccordionTrigger,
 } from '@/components/ui/accordion'
 import { Button } from '@/components/ui/button'
+import type { PartnerMockRecord } from './types'
 import InsurerSection from './sections/insurer-section'
 import ChannelSection from './sections/channel-section'
 import ProductSection from './sections/product-section'
@@ -30,6 +31,12 @@ const partnerFormSchema = object({
 		cnpj: optional(string()),
 		name: optional(string()),
 		insurerId: optional(string()),
+		selectedLabel: optional(string()),
+		status: optional(string()),
+		createdAt: optional(string()),
+		suspendedAt: optional(string()),
+		inactivatedAt: optional(string()),
+		reactivatedAt: optional(string()),
 	}),
 	channel: object({
 		enabled: boolean(),
@@ -37,12 +44,26 @@ const partnerFormSchema = object({
 		cnpj: optional(string()),
 		name: optional(string()),
 		insurerId: optional(string()),
+		linkedInsurerName: optional(string()),
+		linkedInsurerId: optional(string()),
+		status: optional(string()),
+		createdAt: optional(string()),
+		suspendedAt: optional(string()),
+		inactivatedAt: optional(string()),
+		reactivatedAt: optional(string()),
 	}),
 	product: object({
 		enabled: boolean(),
 		useCurrentChannel: union([literal('yes'), literal('no')]),
 		name: optional(string()),
 		channelId: optional(string()),
+		linkedChannelName: optional(string()),
+		linkedChannelId: optional(string()),
+		status: optional(string()),
+		createdAt: optional(string()),
+		suspendedAt: optional(string()),
+		inactivatedAt: optional(string()),
+		reactivatedAt: optional(string()),
 		dfiFile: optional(string()),
 		acceptanceModel: union([literal('simplified'), literal('complete')]),
 		ageMin: optional(string()),
@@ -74,25 +95,63 @@ const mockChannels = [
 	{ value: 'can-2', label: 'Canal Digital' },
 ]
 
+function mergeUniqueOptions(
+	saved: { value: string; label: string }[],
+	mocked: { value: string; label: string }[]
+) {
+	const map = new Map<string, string>()
+	;[...saved, ...mocked].forEach(opt => {
+		if (!map.has(opt.value)) map.set(opt.value, opt.label)
+	})
+	return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+}
+
 export default function PartnerForm() {
 	const router = useRouter()
 	const [errorFields, setErrorFields] = useState<Set<string>>(new Set())
 	const [submitMessage, setSubmitMessage] = useState<string | null>(null)
+	const [savedInsurers, setSavedInsurers] = useState<{ value: string; label: string }[]>([])
+	const [savedChannels, setSavedChannels] = useState<{ value: string; label: string }[]>([])
 
 	const defaultValues: PartnerFormValues = {
-		insurer: { mode: 'new', cnpj: '', name: '', insurerId: '' },
+		insurer: {
+			mode: 'new',
+			cnpj: '',
+			name: '',
+			insurerId: '',
+			selectedLabel: '',
+			status: '',
+			createdAt: '',
+			suspendedAt: '',
+			inactivatedAt: '',
+			reactivatedAt: '',
+		},
 		channel: {
 			enabled: true,
 			useCurrentInsurer: 'yes',
 			cnpj: '',
 			name: '',
 			insurerId: '',
+			linkedInsurerName: '',
+			linkedInsurerId: '',
+			status: '',
+			createdAt: '',
+			suspendedAt: '',
+			inactivatedAt: '',
+			reactivatedAt: '',
 		},
 		product: {
 			enabled: true,
 			useCurrentChannel: 'yes',
 			name: '',
 			channelId: '',
+			linkedChannelName: '',
+			linkedChannelId: '',
+			status: '',
+			createdAt: '',
+			suspendedAt: '',
+			inactivatedAt: '',
+			reactivatedAt: '',
 			dfiFile: '',
 			acceptanceModel: 'simplified',
 			ageMin: '',
@@ -128,17 +187,58 @@ export default function PartnerForm() {
 	useEffect(() => {
 		if (typeof window === 'undefined') return
 		try {
+			const fromSummary = sessionStorage.getItem('partnerSummaryFromSummary') === '1'
 			const stored = sessionStorage.getItem('partnerSummary')
-			if (stored) {
+			if (fromSummary && stored) {
 				const parsed = JSON.parse(stored) as PartnerFormValues
 				reset(parsed)
 				setSubmitMessage(null)
 				setErrorFields(new Set())
 			}
+			sessionStorage.removeItem('partnerSummaryFromSummary')
+			sessionStorage.removeItem('partnerSummary')
 		} catch (err) {
 			console.error('Erro ao restaurar dados do resumo', err)
 		}
 	}, [reset])
+
+	useEffect(() => {
+		if (typeof window === 'undefined') return
+		try {
+			const stored = localStorage.getItem('partnersMock')
+			if (!stored) return
+			const parsed = JSON.parse(stored) as PartnerMockRecord[]
+
+			const insurersSet = new Map<string, string>()
+			const channelsSet = new Map<string, string>()
+
+			parsed.forEach(record => {
+				const insurerLabel =
+					record.data.channel.linkedInsurerName ||
+					record.data.insurer.name ||
+					record.data.insurer.selectedLabel ||
+					record.data.insurer.insurerId ||
+					''
+				if (insurerLabel) insurersSet.set(insurerLabel, insurerLabel)
+
+				const channelLabel =
+					record.data.product.linkedChannelName ||
+					record.data.channel.name ||
+					record.data.product.channelId ||
+					''
+				if (channelLabel) channelsSet.set(channelLabel, channelLabel)
+			})
+
+			if (insurersSet.size) {
+				setSavedInsurers(Array.from(insurersSet.entries()).map(([value, label]) => ({ value, label })))
+			}
+			if (channelsSet.size) {
+				setSavedChannels(Array.from(channelsSet.entries()).map(([value, label]) => ({ value, label })))
+			}
+		} catch (err) {
+			console.error('Erro ao carregar referências salvas', err)
+		}
+	}, [])
 
 	const channelEnabled = watch('channel.enabled')
 	const productEnabled = watch('product.enabled')
@@ -154,8 +254,8 @@ export default function PartnerForm() {
 	const lockChannelToCurrent = channelEnabled
 	const canUseCurrentChannel = channelEnabled
 
-	const insurerOptions = useMemo(() => mockInsurers, [])
-	const channelOptions = useMemo(() => mockChannels, [])
+	const insurerOptions = useMemo(() => mergeUniqueOptions(savedInsurers, mockInsurers), [savedInsurers])
+	const channelOptions = useMemo(() => mergeUniqueOptions(savedChannels, mockChannels), [savedChannels])
 
 	useEffect(() => {
 		if (lockInsurerToCurrent && !useCurrentInsurer) {
@@ -181,8 +281,8 @@ export default function PartnerForm() {
 		}
 	}, [productDfiEnabled, setValue])
 
-	function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
-		setValue('insurer.mode', value)
+function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
+	setValue('insurer.mode', value)
 
 		if (value !== 'new') {
 			setValue('insurer.cnpj', '')
@@ -199,6 +299,8 @@ export default function PartnerForm() {
 			setValue('channel.useCurrentInsurer', 'yes')
 			setValue('channel.insurerId', '')
 		}
+
+		setValue('insurer.selectedLabel', '')
 	}
 
 	function handleReset() {
@@ -329,18 +431,111 @@ export default function PartnerForm() {
 			return
 		}
 
-	setErrorFields(new Set())
-	setSubmitMessage(null)
+		const insurerSelectedLabel =
+			data.insurer.insurerId
+				? insurerOptions.find(option => option.value === data.insurer.insurerId)?.label ?? data.insurer.insurerId ?? ''
+				: ''
 
-	try {
-		sessionStorage.setItem('partnerSummary', JSON.stringify(data))
-	} catch (err) {
-		console.error('Erro ao salvar rascunho local', err)
+		const channelSelectedInsurerLabel =
+			data.channel.insurerId
+				? insurerOptions.find(option => option.value === data.channel.insurerId)?.label ?? data.channel.insurerId ?? ''
+				: ''
+
+		const productSelectedChannelLabel =
+		data.product.channelId
+			? channelOptions.find(option => option.value === data.product.channelId)?.label ?? data.product.channelId ?? ''
+			: ''
+
+		const currentInsurerName = data.insurer.mode === 'new' ? data.insurer.name ?? '' : insurerSelectedLabel
+		const currentChannelName = data.channel.name ?? ''
+
+		const now = new Date().toISOString()
+
+		const payload: PartnerFormValues = {
+			...data,
+			insurer: {
+				...data.insurer,
+				selectedLabel: insurerSelectedLabel,
+				status: data.insurer.status || 'active',
+				createdAt: data.insurer.createdAt || now,
+			},
+			channel: data.channel.enabled
+				? {
+						...data.channel,
+						linkedInsurerName:
+							data.channel.useCurrentInsurer === 'yes' ? currentInsurerName : channelSelectedInsurerLabel,
+						linkedInsurerId:
+							data.channel.useCurrentInsurer === 'yes'
+								? data.insurer.mode === 'select'
+									? data.insurer.insurerId ?? ''
+									: ''
+								: data.channel.insurerId ?? '',
+						status: data.channel.status || 'active',
+						createdAt: data.channel.createdAt || now,
+				  }
+				: {
+						...data.channel,
+						linkedInsurerName: '',
+						linkedInsurerId: '',
+						insurerId: '',
+						cnpj: '',
+						name: '',
+						status: '',
+						createdAt: '',
+						suspendedAt: '',
+						inactivatedAt: '',
+						reactivatedAt: '',
+				  },
+			product: data.product.enabled
+				? {
+						...data.product,
+						linkedChannelName:
+							data.product.useCurrentChannel === 'yes' ? currentChannelName : productSelectedChannelLabel,
+						linkedChannelId: data.product.useCurrentChannel === 'yes' ? '' : data.product.channelId ?? '',
+						status: data.product.status || 'active',
+						createdAt: data.product.createdAt || now,
+				  }
+				: {
+						...data.product,
+						linkedChannelName: '',
+						linkedChannelId: '',
+						channelId: '',
+						name: '',
+						status: '',
+						createdAt: '',
+						suspendedAt: '',
+						inactivatedAt: '',
+						reactivatedAt: '',
+						ageMin: '',
+						ageMax: '',
+						maxTerm: '',
+						dfiEnabled: 'no',
+						dfiValue: '',
+						dfiFile: '',
+						mipValue: '',
+						examsStandard: '',
+						examsAdditionalMale: false,
+						examsAdditionalFemale: false,
+						examsAdditionalMaleAge: '',
+						examsAdditionalFemaleAge: '',
+						propertyResidential: false,
+						propertyCommercial: false,
+						propertyMixed: false,
+				  },
+		}
+
+		setErrorFields(new Set())
+		setSubmitMessage(null)
+
+		try {
+			sessionStorage.setItem('partnerSummary', JSON.stringify(payload))
+		} catch (err) {
+			console.error('Erro ao salvar rascunho local', err)
+		}
+
+		router.push('/partners/summary')
+
 	}
-
-	router.push('/partners/summary')
-}
-
 	return (
 		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 			<Accordion type="multiple" defaultValue={['insurer', 'channel', 'product']}>

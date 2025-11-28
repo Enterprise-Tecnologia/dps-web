@@ -10,7 +10,7 @@ type InsurerSectionProps = {
 	control: Control<PartnerFormValues>
 	insurerMode: PartnerFormValues['insurer']['mode']
 	insurerOptions: { value: string; label: string }[]
-	onModeChange: (value: 'new' | 'select' | 'skip') => void
+	onModeChange: (value: 'new' | 'select') => void
 	invalidFields: Set<string>
 }
 
@@ -26,15 +26,14 @@ export default function InsurerSection({
 	return (
 		<div className="rounded-2xl border bg-white p-5 shadow-sm space-y-5">
 			<div className="flex flex-col gap-2">
-				<p className="text-sm font-medium text-primary">Cadastrar seguradora agora?</p>
+				<p className="text-sm font-medium text-primary">Cadastrar Seguradora</p>
 				<RadioGroup
 					value={insurerMode}
-					onValueChange={value => onModeChange(value as 'new' | 'select' | 'skip')}
-					className="grid grid-cols-1 sm:grid-cols-3 gap-3"
+					onValueChange={value => onModeChange(value as 'new' | 'select')}
+					className="grid grid-cols-1 sm:grid-cols-2 gap-3"
 				>
-					<RadioOption value="new" label="Sim, com dados novos" />
-					<RadioOption value="select" label="Sim, selecionar seguradora" />
-					<RadioOption value="skip" label="Não" />
+					<RadioOption value="new" label="Nova seguradora" />
+					<RadioOption value="select" label="Selecionar na lista" />
 				</RadioGroup>
 				<p className="text-sm text-muted-foreground">
 					Cadastre a seguradora base ou avance direto para canal e produto, vinculando uma seguradora existente
@@ -96,12 +95,6 @@ export default function InsurerSection({
 							/>
 						)}
 					/>
-				</div>
-			)}
-
-			{insurerMode === 'skip' && (
-				<div className="text-sm text-muted-foreground">
-					Você pode pular esta etapa e vincular uma seguradora ao cadastrar o canal.
 				</div>
 			)}
 		</div>

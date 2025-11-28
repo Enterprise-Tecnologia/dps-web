@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import SelectComp from '@/components/ui/select-comp'
 import { RadioGroup } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
+import { maskToBrlCurrency } from '@/lib/utils'
 import RadioOption from './radio-option'
 import type { PartnerFormValues } from '../partner-form'
 
@@ -227,8 +228,10 @@ export default function ProductSection({
 										render={({ field }) => (
 											<Input
 												id="dfiValueFixed"
+												type="text"
 												placeholder="R$ 0,00"
-												mask="R$ 99.999.999,99"
+												mask="R$ 9999999999999"
+												beforeMaskedStateChange={maskToBrlCurrency}
 												className={isInvalid('product.dfiValue') ? 'border-destructive focus:ring-destructive' : ''}
 												{...field}
 											/>
@@ -276,8 +279,10 @@ export default function ProductSection({
 									render={({ field }) => (
 										<Input
 											id="productMip"
+											type="text"
 											placeholder="R$ 0,00"
-											mask="R$ 99.999.999,99"
+											mask="R$ 9999999999999"
+											beforeMaskedStateChange={maskToBrlCurrency}
 											className={isInvalid('product.mipValue') ? 'border-destructive focus:ring-destructive' : ''}
 											{...field}
 										/>

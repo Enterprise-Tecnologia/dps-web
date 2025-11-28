@@ -21,7 +21,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 			mask,
 			maskPlaceholder,
 			beforeMaskedStateChange,
-			...props
+			...rest
 		},
 		ref
 	) => {
@@ -46,25 +46,26 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 			}
 		}, [mask]);
 		
-		const InputComp = mask && ReactInputMask ? (
-			React.createElement(ReactInputMask, {
-				mask,
-				maskPlaceholder: maskPlaceholder ?? '',
-				beforeMaskedStateChange,
-				inputRef: ref,
-				className: inputClassName,
-				style: inputStyle,
-				...props
-			})
-		) : (
-			<input
-				type={type}
-				className={inputClassName}
-				style={inputStyle}
-				ref={ref}
-				{...props}
-			/>
-		)
+		const InputComp =
+			mask && ReactInputMask
+				? React.createElement(ReactInputMask, {
+						mask,
+						maskPlaceholder: maskPlaceholder ?? '',
+						beforeMaskedStateChange,
+						ref,
+						className: inputClassName,
+						style: inputStyle,
+						...rest,
+				  })
+				: (
+						<input
+							type={type}
+							className={inputClassName}
+							style={inputStyle}
+							ref={ref}
+							{...rest}
+						/>
+				  )
 
 		if (icon) {
 			return (

@@ -40,8 +40,8 @@ export default function ChannelSection({
 					onValueChange={value => onToggleEnabled(value === 'yes')}
 					className="grid grid-cols-2 gap-3 sm:max-w-xs"
 				>
-					<RadioOption value="yes" label="Sim" />
-					<RadioOption value="no" label="Não" />
+						<RadioOption value="yes" label="Sim" />
+						<RadioOption value="no" label="Não, vincular no produto." />
 				</RadioGroup>
 				<p className="text-sm text-muted-foreground">Um canal precisa estar ligado a uma seguradora única.</p>
 			</div>

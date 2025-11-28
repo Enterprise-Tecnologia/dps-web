@@ -4,10 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import type { PartnerFormValues } from '@/components/partners/partner-form'
+import type { PartnerMockRecord } from '@/components/partners/types'
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog'
+
 
 export default function PartnerSummaryPage() {
 	const router = useRouter()
 	const [data, setData] = useState<PartnerFormValues | null>(null)
+	const [showSuccess, setShowSuccess] = useState(false)
 
 	useEffect(() => {
 		try {
@@ -19,10 +29,30 @@ export default function PartnerSummaryPage() {
 	}, [])
 
 	function handleConfirm() {
-		alert('Resumo confirmado (somente teste; envio real não implementado).')
+		try {
+			if (typeof window !== 'undefined' && data) {
+				const stored = localStorage.getItem('partnersMock')
+				const existing = stored ? (JSON.parse(stored) as PartnerMockRecord[]) : []
+				const record: PartnerMockRecord = {
+					id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
+					createdAt: new Date().toISOString(),
+					data,
+				}
+				localStorage.setItem('partnersMock', JSON.stringify([...existing, record]))
+				sessionStorage.setItem('partnerSummary', JSON.stringify(data))
+			}
+		} catch (err) {
+			console.error('Erro ao salvar mock de parceiros', err)
+		}
+		setShowSuccess(true)
 	}
 
 	function handleCorrect() {
+		try {
+			sessionStorage.setItem('partnerSummaryFromSummary', '1')
+		} catch (err) {
+			console.error('Erro ao marcar retorno do resumo', err)
+		}
 		router.push('/partners/create')
 	}
 
@@ -41,6 +71,21 @@ export default function PartnerSummaryPage() {
 			</div>
 		)
 	}
+
+	const insurerSelectedName = data.insurer.selectedLabel || data.insurer.insurerId || ''
+	const insurerCurrentName = data.insurer.mode === 'new' ? data.insurer.name || '' : insurerSelectedName
+	const channelLinkedInsurerName =
+		data.channel.linkedInsurerName || insurerCurrentName || data.channel.insurerId || ''
+	const channelLinkingText =
+		data.channel.useCurrentInsurer === 'yes'
+			? `Seguradora atual${channelLinkedInsurerName ? ` - ${channelLinkedInsurerName}` : ''}`
+			: `Selecionar na lista${channelLinkedInsurerName ? ` - ${channelLinkedInsurerName}` : ''}`
+	const productLinkedChannelName =
+		data.product.linkedChannelName || data.channel.name || data.product.channelId || ''
+	const productLinkingText =
+		data.product.useCurrentChannel === 'yes'
+			? `Canal atual${productLinkedChannelName ? ` - ${productLinkedChannelName}` : ''}`
+			: `Selecionar na lista${productLinkedChannelName ? ` - ${productLinkedChannelName}` : ''}`
 
 	return (
 		<div className="p-6">
@@ -63,13 +108,13 @@ export default function PartnerSummaryPage() {
 					{data.insurer.mode === 'new' ? (
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
 							<Item label="Modo">Sim, com dados novos</Item>
-							<Item label="CNPJ">{data.insurer.cnpj || '—'}</Item>
-							<Item label="Razão social">{data.insurer.name || '—'}</Item>
+							<Item label="CNPJ">{data.insurer.cnpj || 'Não informado'}</Item>
+							<Item label="Raz?o social">{data.insurer.name || 'Não informado'}</Item>
 						</dl>
 					) : data.insurer.mode === 'select' ? (
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
 							<Item label="Modo">Sim, selecionar seguradora</Item>
-							<Item label="Seguradora selecionada">{data.insurer.insurerId || '—'}</Item>
+							<Item label="Seguradora selecionada">{insurerSelectedName || 'Não informado'}</Item>
 						</dl>
 					) : (
 						<p className="text-sm text-muted-foreground">Não cadastrar seguradora agora.</p>
@@ -80,13 +125,11 @@ export default function PartnerSummaryPage() {
 					<h2 className="text-lg font-semibold text-primary">Canal</h2>
 					{data.channel.enabled ? (
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-							<Item label="CNPJ do canal">{data.channel.cnpj || '—'}</Item>
-							<Item label="Nome do canal">{data.channel.name || '—'}</Item>
-							<Item label="Vincular seguradora">
-								{data.channel.useCurrentInsurer === 'yes' ? 'Seguradora atual' : 'Selecionar na lista'}
-							</Item>
+							<Item label="CNPJ do canal">{data.channel.cnpj || 'Não informado'}</Item>
+							<Item label="Nome do canal">{data.channel.name || 'Não informado'}</Item>
+							<Item label="Vincular seguradora">{channelLinkingText}</Item>
 							{data.channel.useCurrentInsurer === 'no' ? (
-								<Item label="Seguradora selecionada">{data.channel.insurerId || '—'}</Item>
+								<Item label="Seguradora selecionada">{data.channel.linkedInsurerName || data.channel.insurerId || 'Não informado'}</Item>
 							) : null}
 						</dl>
 					) : (
@@ -99,12 +142,10 @@ export default function PartnerSummaryPage() {
 					{data.product.enabled ? (
 						<div className="space-y-3 text-sm">
 							<dl className="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<Item label="Nome do produto">{data.product.name || '—'}</Item>
-								<Item label="Vincular canal">
-									{data.product.useCurrentChannel === 'yes' ? 'Canal atual' : 'Selecionar na lista'}
-								</Item>
+								<Item label="Nome do produto">{data.product.name || 'Não informado'}</Item>
+								<Item label="Vincular canal">{productLinkingText}</Item>
 								{data.product.useCurrentChannel === 'no' ? (
-									<Item label="Canal selecionado">{data.product.channelId || '—'}</Item>
+									<Item label="Canal selecionado">{data.product.linkedChannelName || data.product.channelId || 'Não informado'}</Item>
 								) : null}
 								<Item label="Modelo de aceitação">
 									{data.product.acceptanceModel === 'complete' ? 'Modelo completo' : 'Modelo simplificado'}
@@ -165,6 +206,20 @@ export default function PartnerSummaryPage() {
 					)}
 				</section>
 			</div>
+
+			<Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Cadastro confirmado</DialogTitle>
+					</DialogHeader>
+					<div className="text-sm text-muted-foreground space-y-1">
+						<p>Resumo salvo localmente no navegador para testes.</p>
+					</div>
+					<DialogFooter>
+						<Button onClick={() => setShowSuccess(false)}>Fechar</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

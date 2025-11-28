@@ -14,7 +14,7 @@ export default function RadioOption({ value, label, disabled = false }: RadioOpt
 			}`}
 		>
 			<RadioGroupItem value={value} disabled={disabled} />
-			<span className="text-sm whitespace-nowrap overflow-hidden text-ellipsis">{label}</span>
+			<span className="text-sm whitespace-normal leading-snug break-words">{label}</span>
 		</label>
 	)
 }
