@@ -56,6 +56,13 @@ export default function PartnerSummaryPage() {
 		router.push('/partners/create')
 	}
 
+	function handleCloseSuccess(open: boolean) {
+		setShowSuccess(open)
+		if (!open) {
+			router.push('/partners')
+		}
+	}
+
 	if (!data) {
 		return (
 			<div className="p-6">
@@ -207,7 +214,7 @@ export default function PartnerSummaryPage() {
 				</section>
 			</div>
 
-			<Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+			<Dialog open={showSuccess} onOpenChange={handleCloseSuccess}>
 				<DialogContent className="max-w-md">
 					<DialogHeader>
 						<DialogTitle>Cadastro confirmado</DialogTitle>
@@ -216,7 +223,7 @@ export default function PartnerSummaryPage() {
 						<p>Resumo salvo localmente no navegador para testes.</p>
 					</div>
 					<DialogFooter>
-						<Button onClick={() => setShowSuccess(false)}>Fechar</Button>
+						<Button onClick={() => handleCloseSuccess(false)}>Fechar</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
