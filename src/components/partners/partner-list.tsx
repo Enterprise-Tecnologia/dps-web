@@ -16,12 +16,13 @@ import {
 
 import PartnerFilterBar from './partner-filter-bar'
 import PartnerInsurerCard from './partner-insurer-card'
-import { buildTree, getTimestamp, type TreeInsurer } from './partner-list-helpers'
+import { buildTree, getTimestamp, normalizeStatus, type StatusDates, type TreeInsurer } from './partner-list-helpers'
 import type { PartnerMockRecord } from './types'
 
 export default function PartnerList() {
 	const [records, setRecords] = useState<PartnerMockRecord[]>([])
 	const [selectedInsurer, setSelectedInsurer] = useState('all')
+	const [showCancelled, setShowCancelled] = useState(false)
 	const [currentPage, setCurrentPage] = useState(1)
 
 	useEffect(() => {
@@ -38,68 +39,98 @@ export default function PartnerList() {
 		}
 	}, [])
 
+	function applyStatusChange<T extends StatusDates>(
+		entity: T,
+		newStatus: 'active' | 'suspended' | 'cancelled',
+		now: string
+	): T {
+		return {
+			...entity,
+			status: newStatus,
+			createdAt: entity.createdAt || now,
+			suspendedAt: newStatus === 'suspended' ? now : entity.suspendedAt,
+			cancelledAt: newStatus === 'cancelled' ? now : entity.cancelledAt,
+			inactivatedAt: newStatus === 'cancelled' ? now : entity.inactivatedAt,
+			reactivatedAt: newStatus === 'active' ? now : entity.reactivatedAt,
+		}
+	}
+
 	function updateStatus(
 		type: 'insurer' | 'channel' | 'product',
 		ids: string[],
-		newStatus: 'active' | 'suspended' | 'inactive'
+		newStatus: 'active' | 'suspended' | 'cancelled'
 	) {
 		if (typeof window === 'undefined') return
-		const now = new Date().toISOString()
+		setRecords(current => {
+			const now = new Date().toISOString()
 
-		const updated = records.map(rec => {
-			if (!ids.includes(rec.id)) return rec
-			const data = { ...rec.data }
+			const updated = current.map(rec => {
+				if (!ids.includes(rec.id)) return rec
+				const data = { ...rec.data }
 
-			if (type === 'insurer') {
-				data.insurer = {
-					...data.insurer,
-					status: newStatus,
-					suspendedAt: newStatus === 'suspended' ? now : data.insurer.suspendedAt,
-					inactivatedAt: newStatus === 'inactive' ? now : data.insurer.inactivatedAt,
-					reactivatedAt: newStatus === 'active' ? now : data.insurer.reactivatedAt,
+				if (type === 'insurer') {
+					data.insurer = applyStatusChange(data.insurer, newStatus, now)
+					if (newStatus === 'cancelled') {
+						data.channel = applyStatusChange(data.channel, newStatus, now)
+						data.product = applyStatusChange(data.product, newStatus, now)
+					}
 				}
-			}
 
-			if (type === 'channel') {
-				data.channel = {
-					...data.channel,
-					status: newStatus,
-					suspendedAt: newStatus === 'suspended' ? now : data.channel.suspendedAt,
-					inactivatedAt: newStatus === 'inactive' ? now : data.channel.inactivatedAt,
-					reactivatedAt: newStatus === 'active' ? now : data.channel.reactivatedAt,
+				if (type === 'channel') {
+					data.channel = applyStatusChange(data.channel, newStatus, now)
+					if (newStatus === 'cancelled') {
+						data.product = applyStatusChange(data.product, newStatus, now)
+					}
 				}
-			}
 
-			if (type === 'product') {
-				data.product = {
-					...data.product,
-					status: newStatus,
-					suspendedAt: newStatus === 'suspended' ? now : data.product.suspendedAt,
-					inactivatedAt: newStatus === 'inactive' ? now : data.product.inactivatedAt,
-					reactivatedAt: newStatus === 'active' ? now : data.product.reactivatedAt,
+				if (type === 'product') {
+					data.product = applyStatusChange(data.product, newStatus, now)
 				}
-			}
 
-			return { ...rec, data }
+				return { ...rec, data }
+			})
+
+			localStorage.setItem('partnersMock', JSON.stringify(updated))
+			return updated
 		})
-
-		setRecords(updated)
-		localStorage.setItem('partnersMock', JSON.stringify(updated))
 	}
 
 	const tree = useMemo<TreeInsurer[]>(() => buildTree(records), [records])
-	const insurerOptions = useMemo(
-		() =>
-			Array.from(new Set(tree.map(insurer => insurer.name))).map(name => ({
-				label: name,
-				value: name,
-			})),
-		[tree]
-	)
+
+	const treeFilteredByCancelled = useMemo(() => {
+		if (showCancelled) return tree
+
+		return tree
+			.map(insurer => {
+				if (normalizeStatus(insurer.details.status) === 'cancelled') return null
+				const channels = insurer.channels
+					.map(channel => {
+						if (normalizeStatus(channel.details.status) === 'cancelled') return null
+						const products = channel.products.filter(
+							product => normalizeStatus(product.details.status) !== 'cancelled'
+						)
+						return { ...channel, products }
+					})
+					.filter(Boolean) as TreeInsurer['channels']
+
+				return { ...insurer, channels }
+			})
+			.filter(Boolean) as TreeInsurer[]
+	}, [showCancelled, tree])
+	const insurerOptions = useMemo(() => {
+		const actives = tree.filter(insurer => normalizeStatus(insurer.details.status) === 'active')
+		return Array.from(new Set(actives.map(insurer => insurer.name))).map(name => ({
+			label: name,
+			value: name,
+		}))
+	}, [tree])
 
 	const filteredTree = useMemo(
-		() => (selectedInsurer !== 'all' ? tree.filter(insurer => insurer.name === selectedInsurer) : tree),
-		[tree, selectedInsurer]
+		() =>
+			selectedInsurer !== 'all'
+				? treeFilteredByCancelled.filter(insurer => insurer.name === selectedInsurer)
+				: treeFilteredByCancelled,
+		[treeFilteredByCancelled, selectedInsurer]
 	)
 
 	const pageSize = 10
@@ -138,7 +169,13 @@ export default function PartnerList() {
 
 	return (
 		<div className="space-y-4 text-sm">
-			<PartnerFilterBar selectedInsurer={selectedInsurer} options={insurerOptions} onChange={handleSelectInsurer} />
+			<PartnerFilterBar
+				selectedInsurer={selectedInsurer}
+				showCancelled={showCancelled}
+				options={insurerOptions}
+				onChangeInsurer={handleSelectInsurer}
+				onToggleCancelled={setShowCancelled}
+			/>
 
 			<div className="overflow-x-auto pb-4">
 				<div className="min-w-[960px] space-y-4">

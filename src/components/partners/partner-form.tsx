@@ -35,7 +35,7 @@ const partnerFormSchema = object({
 		status: optional(string()),
 		createdAt: optional(string()),
 		suspendedAt: optional(string()),
-		inactivatedAt: optional(string()),
+		cancelledAt: optional(string()),
 		reactivatedAt: optional(string()),
 	}),
 	channel: object({
@@ -49,7 +49,7 @@ const partnerFormSchema = object({
 		status: optional(string()),
 		createdAt: optional(string()),
 		suspendedAt: optional(string()),
-		inactivatedAt: optional(string()),
+		cancelledAt: optional(string()),
 		reactivatedAt: optional(string()),
 	}),
 	product: object({
@@ -62,7 +62,7 @@ const partnerFormSchema = object({
 		status: optional(string()),
 		createdAt: optional(string()),
 		suspendedAt: optional(string()),
-		inactivatedAt: optional(string()),
+		cancelledAt: optional(string()),
 		reactivatedAt: optional(string()),
 		dfiFile: optional(string()),
 		acceptanceModel: union([literal('simplified'), literal('complete')]),
@@ -85,33 +85,38 @@ const partnerFormSchema = object({
 
 export type PartnerFormValues = InferInput<typeof partnerFormSchema>
 
-const mockInsurers = [
+type Option = { value: string; label: string; insurerId?: string }
+
+const mockInsurers: Option[] = [
 	{ value: 'seg-1', label: 'Seguradora Aurora' },
 	{ value: 'seg-2', label: 'Seguradora Horizonte' },
 ]
 
-const mockChannels = [
+const mockChannels: Option[] = [
 	{ value: 'can-1', label: 'Canal Prime' },
 	{ value: 'can-2', label: 'Canal Digital' },
 ]
 
-function mergeUniqueOptions(
-	saved: { value: string; label: string }[],
-	mocked: { value: string; label: string }[]
-) {
-	const map = new Map<string, string>()
+function mergeUniqueOptions(saved: Option[], mocked: Option[]) {
+	const map = new Map<string, Option>()
 	;[...saved, ...mocked].forEach(opt => {
-		if (!map.has(opt.value)) map.set(opt.value, opt.label)
+		if (!map.has(opt.value)) map.set(opt.value, opt)
 	})
-	return Array.from(map.entries()).map(([value, label]) => ({ value, label }))
+	return Array.from(map.values())
+}
+
+function isActiveStatus(status?: string) {
+	const normalized = (status || 'active').toLowerCase()
+	return normalized === 'active' || normalized === 'reactivated'
 }
 
 export default function PartnerForm() {
 	const router = useRouter()
 	const [errorFields, setErrorFields] = useState<Set<string>>(new Set())
 	const [submitMessage, setSubmitMessage] = useState<string | null>(null)
-	const [savedInsurers, setSavedInsurers] = useState<{ value: string; label: string }[]>([])
-	const [savedChannels, setSavedChannels] = useState<{ value: string; label: string }[]>([])
+	const [savedInsurers, setSavedInsurers] = useState<Option[]>([])
+	const [savedChannels, setSavedChannels] = useState<Option[]>([])
+	const [showOverlay, setShowOverlay] = useState(false)
 
 	const defaultValues: PartnerFormValues = {
 		insurer: {
@@ -123,7 +128,7 @@ export default function PartnerForm() {
 			status: '',
 			createdAt: '',
 			suspendedAt: '',
-			inactivatedAt: '',
+			cancelledAt: '',
 			reactivatedAt: '',
 		},
 		channel: {
@@ -137,7 +142,7 @@ export default function PartnerForm() {
 			status: '',
 			createdAt: '',
 			suspendedAt: '',
-			inactivatedAt: '',
+			cancelledAt: '',
 			reactivatedAt: '',
 		},
 		product: {
@@ -150,7 +155,7 @@ export default function PartnerForm() {
 			status: '',
 			createdAt: '',
 			suspendedAt: '',
-			inactivatedAt: '',
+			cancelledAt: '',
 			reactivatedAt: '',
 			dfiFile: '',
 			acceptanceModel: 'simplified',
@@ -209,31 +214,38 @@ export default function PartnerForm() {
 			if (!stored) return
 			const parsed = JSON.parse(stored) as PartnerMockRecord[]
 
-			const insurersSet = new Map<string, string>()
-			const channelsSet = new Map<string, string>()
+			const insurersSet = new Map<string, Option>()
+			const channelsSet = new Map<string, Option>()
 
 			parsed.forEach(record => {
+				const insurerStatus = record.data.insurer.status
+				if (!isActiveStatus(insurerStatus)) return
+
 				const insurerLabel =
 					record.data.channel.linkedInsurerName ||
 					record.data.insurer.name ||
 					record.data.insurer.selectedLabel ||
 					record.data.insurer.insurerId ||
 					''
-				if (insurerLabel) insurersSet.set(insurerLabel, insurerLabel)
+				if (insurerLabel) insurersSet.set(insurerLabel, { value: insurerLabel, label: insurerLabel })
+
+				const channelStatus = record.data.channel.status
+				if (!isActiveStatus(channelStatus)) return
 
 				const channelLabel =
 					record.data.product.linkedChannelName ||
 					record.data.channel.name ||
 					record.data.product.channelId ||
 					''
-				if (channelLabel) channelsSet.set(channelLabel, channelLabel)
+				const channelInsurerId = record.data.channel.insurerId || record.data.channel.linkedInsurerId || record.data.insurer.insurerId || ''
+				if (channelLabel) channelsSet.set(channelLabel, { value: channelLabel, label: channelLabel, insurerId: channelInsurerId })
 			})
 
 			if (insurersSet.size) {
-				setSavedInsurers(Array.from(insurersSet.entries()).map(([value, label]) => ({ value, label })))
+				setSavedInsurers(Array.from(insurersSet.values()))
 			}
 			if (channelsSet.size) {
-				setSavedChannels(Array.from(channelsSet.entries()).map(([value, label]) => ({ value, label })))
+				setSavedChannels(Array.from(channelsSet.values()))
 			}
 		} catch (err) {
 			console.error('Erro ao carregar referências salvas', err)
@@ -255,7 +267,12 @@ export default function PartnerForm() {
 	const canUseCurrentChannel = channelEnabled
 
 	const insurerOptions = useMemo(() => mergeUniqueOptions(savedInsurers, mockInsurers), [savedInsurers])
-	const channelOptions = useMemo(() => mergeUniqueOptions(savedChannels, mockChannels), [savedChannels])
+	const selectedInsurerId = watch('insurer.insurerId')
+	const channelOptions = useMemo(() => {
+		const merged = mergeUniqueOptions(savedChannels, mockChannels)
+		if (!selectedInsurerId) return merged
+		return merged.filter(opt => !opt.insurerId || opt.insurerId === selectedInsurerId)
+	}, [savedChannels, selectedInsurerId])
 
 	useEffect(() => {
 		if (lockInsurerToCurrent && !useCurrentInsurer) {
@@ -311,6 +328,7 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 	}
 
 	function onSubmit(data: PartnerFormValues) {
+		setShowOverlay(true)
 		const errors: string[] = []
 		const errorPaths: string[] = []
 		const somethingEnabled = data.insurer.mode !== 'skip' || data.channel.enabled || data.product.enabled
@@ -428,6 +446,7 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 					? 'Selecione pelo menos uma das seções (Seguradora, Canal ou Produto) para cadastrar.'
 					: 'Os campos marcados são de preenchimento obrigatório.'
 			)
+			setShowOverlay(false)
 			return
 		}
 
@@ -483,7 +502,7 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 						status: '',
 						createdAt: '',
 						suspendedAt: '',
-						inactivatedAt: '',
+						cancelledAt: '',
 						reactivatedAt: '',
 				  },
 			product: data.product.enabled
@@ -504,7 +523,7 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 						status: '',
 						createdAt: '',
 						suspendedAt: '',
-						inactivatedAt: '',
+						cancelledAt: '',
 						reactivatedAt: '',
 						ageMin: '',
 						ageMax: '',
@@ -535,9 +554,11 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 
 		router.push('/partners/summary')
 
+		setShowOverlay(false)
+
 	}
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6 relative">
 			<Accordion type="multiple" defaultValue={['insurer', 'channel', 'product']}>
 				<AccordionItem value="insurer" className="border-none mb-3">
 					<AccordionTrigger className="rounded-2xl bg-white px-4 py-3 border text-base font-semibold text-primary shadow-sm hover:no-underline">
@@ -610,6 +631,15 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 					{isSubmitting ? 'Salvando...' : 'Salvar cadastro'}
 				</Button>
 			</div>
+
+			{showOverlay ? (
+				<div className="absolute inset-0 z-10 rounded-2xl bg-white/70 backdrop-blur-sm flex items-center justify-center">
+					<div className="flex items-center gap-2 text-sm font-medium text-primary">
+						<span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+						Processando...
+					</div>
+				</div>
+			) : null}
 		</form>
 	)
 }
