@@ -25,7 +25,10 @@ export default async function PartnersPage() {
 							Registros salvos localmente até o backend ficar pronto.
 						</p>
 					</div>
-					<Button asChild>
+					<Button
+						asChild
+						className="text-primary-foreground hover:text-primary-foreground hover:bg-primary/90"
+					>
 						<Link href="/partners/create">Cadastrar parceiro</Link>
 					</Button>
 				</header>

@@ -21,7 +21,7 @@ import type { PartnerMockRecord } from './types'
 
 export default function PartnerList() {
 	const [records, setRecords] = useState<PartnerMockRecord[]>([])
-	const [selectedInsurer, setSelectedInsurer] = useState('all')
+	const [selectedInsurers, setSelectedInsurers] = useState<string[]>([])
 	const [showCancelled, setShowCancelled] = useState(false)
 	const [currentPage, setCurrentPage] = useState(1)
 
@@ -125,13 +125,11 @@ export default function PartnerList() {
 		}))
 	}, [tree])
 
-	const filteredTree = useMemo(
-		() =>
-			selectedInsurer !== 'all'
-				? treeFilteredByCancelled.filter(insurer => insurer.name === selectedInsurer)
-				: treeFilteredByCancelled,
-		[treeFilteredByCancelled, selectedInsurer]
-	)
+	const filteredTree = useMemo(() => {
+		if (!selectedInsurers.length) return treeFilteredByCancelled
+		const selectedSet = new Set(selectedInsurers)
+		return treeFilteredByCancelled.filter(insurer => selectedSet.has(insurer.name))
+	}, [treeFilteredByCancelled, selectedInsurers])
 
 	const pageSize = 10
 	const pageAmount = Math.ceil(filteredTree.length / pageSize)
@@ -147,8 +145,8 @@ export default function PartnerList() {
 		}
 	}, [currentPage, safeCurrentPage])
 
-	function handleSelectInsurer(value: string) {
-		setSelectedInsurer(value)
+	function handleSelectInsurers(values: string[]) {
+		setSelectedInsurers(values)
 		setCurrentPage(1)
 	}
 
@@ -170,10 +168,10 @@ export default function PartnerList() {
 	return (
 		<div className="space-y-4 text-sm">
 			<PartnerFilterBar
-				selectedInsurer={selectedInsurer}
+				selectedInsurers={selectedInsurers}
 				showCancelled={showCancelled}
 				options={insurerOptions}
-				onChangeInsurer={handleSelectInsurer}
+				onChangeInsurers={handleSelectInsurers}
 				onToggleCancelled={setShowCancelled}
 			/>
 
@@ -184,7 +182,7 @@ export default function PartnerList() {
 							<p>Nenhum resultado para o filtro selecionado.</p>
 							<button
 								type="button"
-								onClick={() => handleSelectInsurer('all')}
+								onClick={() => handleSelectInsurers([])}
 								className="text-primary text-sm font-medium hover:underline"
 							>
 								Limpar filtro

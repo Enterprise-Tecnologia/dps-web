@@ -32,6 +32,7 @@ type PartnerInsurerCardProps = {
 
 export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerInsurerCardProps) {
 	const insurerStatus = getCurrentStatus(insurer.details)
+	const isInsurerCancelled = insurerStatus === 'cancelled'
 	const [confirmAction, setConfirmAction] = useState<{
 		target: 'insurer' | 'channel' | 'product'
 		recordIds: string[]
@@ -63,7 +64,11 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 	}
 
 	return (
-		<div className="rounded-2xl border bg-white p-4 shadow-sm">
+		<div
+			className={`rounded-2xl border p-4 shadow-sm ${
+				isInsurerCancelled ? 'border-destructive/30 bg-destructive/5 text-muted-foreground' : 'bg-white'
+			}`}
+		>
 			<div className="flex items-center gap-2">
 				<div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
 					<Building2 className="h-5 w-5" />
@@ -154,6 +159,7 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 				) : (
 					insurer.channels.map(channel => {
 						const channelStatus = getCurrentStatus(channel.details)
+						const isChannelCancelled = channelStatus === 'cancelled'
 						const hasBlockingProducts = channel.products.some(
 							product => !['cancelled', 'suspended'].includes(normalizeStatus(product.details.status))
 						)
@@ -175,7 +181,13 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 
 						return (
 							<div key={channel.id} className="space-y-2">
-								<div className="rounded-xl border bg-gray-50 px-3 py-2 inline-flex items-center gap-2">
+								<div
+									className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 ${
+										isChannelCancelled
+											? 'border-destructive/30 bg-destructive/5 text-muted-foreground'
+											: 'bg-gray-50'
+									}`}
+								>
 									<Share2 className="h-4 w-4 text-primary" />
 									<div className="flex flex-col">
 										<span className="font-medium">{channel.name}</span>
@@ -264,6 +276,7 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 										<div className="flex flex-wrap gap-3">
 											{channel.products.map(product => {
 												const productStatus = getCurrentStatus(product.details)
+												const isProductCancelled = productStatus === 'cancelled'
 												const handleProductStatusChange = (next: 'active' | 'suspended' | 'cancelled') => {
 													if (next === 'cancelled') {
 														setConfirmAction({ target: 'product', recordIds: product.recordIds })
@@ -275,7 +288,11 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 												return (
 													<div
 														key={product.id}
-														className="rounded-xl border px-3 py-2 bg-white shadow-sm flex items-center gap-2"
+														className={`flex items-center gap-2 rounded-xl border px-3 py-2 shadow-sm ${
+															isProductCancelled
+																? 'border-destructive/30 bg-destructive/5 text-muted-foreground'
+																: 'bg-white'
+														}`}
 													>
 														<Package2 className="h-4 w-4 text-primary/70" />
 														<div className="flex flex-col leading-tight">

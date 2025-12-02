@@ -13,6 +13,7 @@ type ChannelSectionProps = {
 	canUseCurrentInsurer: boolean
 	lockUseCurrentInsurer: boolean
 	invalidFields: Set<string>
+	duplicateCnpjMessage?: string
 	insurerOptions: { value: string; label: string }[]
 	onToggleEnabled: (enabled: boolean) => void
 	onChangeUseCurrentInsurer: (value: 'yes' | 'no') => void
@@ -25,6 +26,7 @@ export default function ChannelSection({
 	canUseCurrentInsurer,
 	lockUseCurrentInsurer,
 	invalidFields,
+	duplicateCnpjMessage,
 	insurerOptions,
 	onToggleEnabled,
 	onChangeUseCurrentInsurer,
@@ -97,13 +99,18 @@ export default function ChannelSection({
 								name="channel.cnpj"
 								control={control}
 								render={({ field }) => (
-									<Input
-										id="channelCnpj"
-										placeholder="00.000.000/0000-00"
-										mask="99.999.999/9999-99"
-										className={isInvalid('channel.cnpj') ? 'border-destructive focus:ring-destructive' : ''}
-										{...field}
-									/>
+									<>
+										<Input
+											id="channelCnpj"
+											placeholder="00.000.000/0000-00"
+											mask="99.999.999/9999-99"
+											className={isInvalid('channel.cnpj') ? 'border-destructive focus:ring-destructive' : ''}
+											{...field}
+										/>
+										{duplicateCnpjMessage ? (
+											<p className="text-xs text-destructive">{duplicateCnpjMessage}</p>
+										) : null}
+									</>
 								)}
 							/>
 						</div>

@@ -12,6 +12,7 @@ type InsurerSectionProps = {
 	insurerOptions: { value: string; label: string }[]
 	onModeChange: (value: 'new' | 'select') => void
 	invalidFields: Set<string>
+	duplicateCnpjMessage?: string
 }
 
 export default function InsurerSection({
@@ -20,6 +21,7 @@ export default function InsurerSection({
 	insurerOptions,
 	onModeChange,
 	invalidFields,
+	duplicateCnpjMessage,
 }: InsurerSectionProps) {
 	const isInvalid = (path: string) => invalidFields.has(path)
 
@@ -49,13 +51,18 @@ export default function InsurerSection({
 							name="insurer.cnpj"
 							control={control}
 							render={({ field }) => (
-								<Input
-									id="insurerCnpj"
-									placeholder="00.000.000/0000-00"
-									mask="99.999.999/9999-99"
-									className={isInvalid('insurer.cnpj') ? 'border-destructive focus:ring-destructive' : ''}
-									{...field}
-								/>
+								<>
+									<Input
+										id="insurerCnpj"
+										placeholder="00.000.000/0000-00"
+										mask="99.999.999/9999-99"
+										className={isInvalid('insurer.cnpj') ? 'border-destructive focus:ring-destructive' : ''}
+										{...field}
+									/>
+									{duplicateCnpjMessage ? (
+										<p className="text-xs text-destructive">{duplicateCnpjMessage}</p>
+									) : null}
+								</>
 							)}
 						/>
 					</div>

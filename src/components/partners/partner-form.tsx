@@ -110,6 +110,46 @@ function isActiveStatus(status?: string) {
 	return normalized === 'active' || normalized === 'reactivated'
 }
 
+function normalizeCnpj(value?: string) {
+	return value ? value.replace(/\D/g, '') : ''
+}
+
+async function getExistingPartners(): Promise<PartnerMockRecord[]> {
+	if (typeof window === 'undefined') return []
+
+	try {
+		const stored = localStorage.getItem('partnersMock')
+		if (!stored) return []
+		return JSON.parse(stored) as PartnerMockRecord[]
+	} catch (err) {
+		console.error('Erro ao carregar parceiros salvos para verificaÃ¯Â¿Â½Ã¯Â¿Â½Ã‡Å“o de CNPJ', err)
+		return []
+	}
+}
+
+function hasActiveInsurerWithCnpj(records: PartnerMockRecord[], cnpj: string) {
+	const normalized = normalizeCnpj(cnpj)
+	if (!normalized) return false
+
+	return records.some(rec => {
+		const saved = normalizeCnpj(rec.data.insurer.cnpj)
+		if (!saved) return false
+		return isActiveStatus(rec.data.insurer.status) && saved === normalized
+	})
+}
+
+function hasActiveChannelWithCnpj(records: PartnerMockRecord[], cnpj: string) {
+	const normalized = normalizeCnpj(cnpj)
+	if (!normalized) return false
+
+	return records.some(rec => {
+		if (rec.data.channel.enabled === false) return false
+		const saved = normalizeCnpj(rec.data.channel.cnpj)
+		if (!saved) return false
+		return isActiveStatus(rec.data.channel.status) && saved === normalized
+	})
+}
+
 export default function PartnerForm() {
 	const router = useRouter()
 	const [errorFields, setErrorFields] = useState<Set<string>>(new Set())
@@ -117,6 +157,9 @@ export default function PartnerForm() {
 	const [savedInsurers, setSavedInsurers] = useState<Option[]>([])
 	const [savedChannels, setSavedChannels] = useState<Option[]>([])
 	const [showOverlay, setShowOverlay] = useState(false)
+	const [existingPartners, setExistingPartners] = useState<PartnerMockRecord[]>([])
+	const [insurerCnpjDuplicate, setInsurerCnpjDuplicate] = useState(false)
+	const [channelCnpjDuplicate, setChannelCnpjDuplicate] = useState(false)
 
 	const defaultValues: PartnerFormValues = {
 		insurer: {
@@ -202,6 +245,7 @@ export default function PartnerForm() {
 			}
 			sessionStorage.removeItem('partnerSummaryFromSummary')
 			sessionStorage.removeItem('partnerSummary')
+			setExistingPartners(parsed)
 		} catch (err) {
 			console.error('Erro ao restaurar dados do resumo', err)
 		}
@@ -248,7 +292,7 @@ export default function PartnerForm() {
 				setSavedChannels(Array.from(channelsSet.values()))
 			}
 		} catch (err) {
-			console.error('Erro ao carregar referências salvas', err)
+			console.error('Erro ao carregar referÃƒÂªncias salvas', err)
 		}
 	}, [])
 
@@ -259,12 +303,20 @@ export default function PartnerForm() {
 	const productUseCurrentValue = watch('product.useCurrentChannel')
 	const productDfiEnabled = watch('product.dfiEnabled') === 'yes'
 	const productDfiFile = watch('product.dfiFile')
+	const insurerCnpjValue = watch('insurer.cnpj')
+	const channelCnpjValue = watch('channel.cnpj')
 	const useCurrentInsurer = channelUseCurrentValue === 'yes'
 	const useCurrentChannel = productUseCurrentValue === 'yes'
 	const lockInsurerToCurrent = insurerMode === 'new' || insurerMode === 'select'
 	const canUseCurrentInsurer = insurerMode !== 'skip'
 	const lockChannelToCurrent = channelEnabled
 	const canUseCurrentChannel = channelEnabled
+	const invalidFields = useMemo(() => {
+		const merged = new Set(errorFields)
+		if (insurerCnpjDuplicate) merged.add('insurer.cnpj')
+		if (channelCnpjDuplicate) merged.add('channel.cnpj')
+		return merged
+	}, [channelCnpjDuplicate, errorFields, insurerCnpjDuplicate])
 
 	const insurerOptions = useMemo(() => mergeUniqueOptions(savedInsurers, mockInsurers), [savedInsurers])
 	const selectedInsurerId = watch('insurer.insurerId')
@@ -298,6 +350,32 @@ export default function PartnerForm() {
 		}
 	}, [productDfiEnabled, setValue])
 
+	useEffect(() => {
+		if (insurerMode !== 'new') {
+			setInsurerCnpjDuplicate(false)
+			return
+		}
+		const normalized = normalizeCnpj(insurerCnpjValue)
+		if (normalized.length === 14 && hasActiveInsurerWithCnpj(existingPartners, insurerCnpjValue || '')) {
+			setInsurerCnpjDuplicate(true)
+		} else {
+			setInsurerCnpjDuplicate(false)
+		}
+	}, [existingPartners, insurerCnpjValue, insurerMode])
+
+	useEffect(() => {
+		if (!channelEnabled) {
+			setChannelCnpjDuplicate(false)
+			return
+		}
+		const normalized = normalizeCnpj(channelCnpjValue)
+		if (normalized.length === 14 && hasActiveChannelWithCnpj(existingPartners, channelCnpjValue || '')) {
+			setChannelCnpjDuplicate(true)
+		} else {
+			setChannelCnpjDuplicate(false)
+		}
+	}, [channelCnpjValue, channelEnabled, existingPartners])
+
 function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 	setValue('insurer.mode', value)
 
@@ -327,29 +405,30 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 		reset(defaultValues)
 	}
 
-	function onSubmit(data: PartnerFormValues) {
+	async function onSubmit(data: PartnerFormValues) {
 		setShowOverlay(true)
-		const errors: string[] = []
-		const errorPaths: string[] = []
-		const somethingEnabled = data.insurer.mode !== 'skip' || data.channel.enabled || data.product.enabled
+		try {
+			const errors: string[] = []
+			const errorPaths: string[] = []
+			const somethingEnabled = data.insurer.mode !== 'skip' || data.channel.enabled || data.product.enabled
+			const existingRecords = await getExistingPartners()
 
 		if (!somethingEnabled) {
 			errors.push('Cadastre ao menos seguradora, canal ou produto.')
 			errorPaths.push('global.noneEnabled')
 		}
 
-		// Seguradora
 		if (!data.insurer.mode) {
-			errors.push('Escolha uma opção de seguradora.')
+			errors.push('Escolha uma opcao de seguradora.')
 			errorPaths.push('insurer.mode')
 		}
 		if (data.insurer.mode === 'new') {
 			if (!data.insurer.cnpj) {
-				errors.push('CNPJ da seguradora é obrigatório.')
+				errors.push('CNPJ da seguradora e obrigatorio.')
 				errorPaths.push('insurer.cnpj')
 			}
 			if (!data.insurer.name) {
-				errors.push('Nome/Razão social da seguradora é obrigatório.')
+				errors.push('Nome/Razao social da seguradora e obrigatorio.')
 				errorPaths.push('insurer.name')
 			}
 		}
@@ -357,117 +436,109 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 			errors.push('Selecione uma seguradora na lista.')
 			errorPaths.push('insurer.insurerId')
 		}
+		if (data.insurer.mode === 'new' && data.insurer.cnpj) {
+				if (hasActiveInsurerWithCnpj(existingRecords, data.insurer.cnpj)) {
+					errors.push('CNPJ digitado já está cadastrado.')
+					errorPaths.push('insurer.cnpj')
+				}
+		}
 
-		// Canal
 		if (data.channel.enabled && !data.channel.cnpj) {
-			errors.push('CNPJ do canal é obrigatório.')
+			errors.push('CNPJ do canal e obrigatorio.')
 			errorPaths.push('channel.cnpj')
 		}
 		if (data.channel.enabled && !data.channel.name) {
-			errors.push('Nome do canal é obrigatório.')
+			errors.push('Nome do canal e obrigatorio.')
 			errorPaths.push('channel.name')
 		}
 		if (data.channel.enabled && data.channel.useCurrentInsurer === 'no' && !data.channel.insurerId) {
 			errors.push('Selecione uma seguradora para o canal.')
 			errorPaths.push('channel.insurerId')
 		}
+		if (data.channel.enabled && data.channel.cnpj) {
+				if (hasActiveChannelWithCnpj(existingRecords, data.channel.cnpj)) {
+					errors.push('CNPJ digitado já está cadastrado.')
+					errorPaths.push('channel.cnpj')
+				}
+		}
 
-		// Produto
 		if (data.product.enabled) {
 			if (!data.product.name) {
-				errors.push('Nome do produto é obrigatório.')
+				errors.push('Nome do produto e obrigatorio.')
 				errorPaths.push('product.name')
 			}
-
 			if (data.product.useCurrentChannel === 'no' && !data.product.channelId) {
 				errors.push('Selecione um canal para o produto.')
 				errorPaths.push('product.channelId')
 			}
-
 			if (!data.product.ageMin) {
-				errors.push('Idade mínima é obrigatória.')
+				errors.push('Idade minima e obrigatoria.')
 				errorPaths.push('product.ageMin')
 			}
 			if (!data.product.ageMax) {
-				errors.push('Idade máxima é obrigatória.')
+				errors.push('Idade maxima e obrigatoria.')
 				errorPaths.push('product.ageMax')
 			}
 			if (!data.product.maxTerm) {
-				errors.push('Prazo máximo é obrigatório.')
+				errors.push('Prazo maximo e obrigatorio.')
 				errorPaths.push('product.maxTerm')
 			}
-
 			if (!data.product.dfiEnabled) {
 				errors.push('Informe se o produto possui DFI.')
 				errorPaths.push('product.dfiEnabled')
 			} else if (data.product.dfiEnabled === 'yes') {
 				if (!data.product.dfiValue) {
-					errors.push('Valor DFI é obrigatório.')
+					errors.push('Valor DFI e obrigatorio.')
 					errorPaths.push('product.dfiValue')
 				}
 				if (!data.product.mipValue) {
-					errors.push('Valor MIP é obrigatório.')
+					errors.push('Valor MIP e obrigatorio.')
 					errorPaths.push('product.mipValue')
 				}
 				if (!data.product.dfiFile) {
-					errors.push('Anexo do DFI é obrigatório.')
+					errors.push('Anexo do DFI e obrigatorio.')
 					errorPaths.push('product.dfiFile')
 				}
-			} else {
-				if (!data.product.mipValue) {
-					errors.push('Valor MIP é obrigatório.')
-					errorPaths.push('product.mipValue')
-				}
+			} else if (!data.product.mipValue) {
+				errors.push('Valor MIP e obrigatorio.')
+				errorPaths.push('product.mipValue')
 			}
-
 			if (data.product.examsAdditionalMale && !data.product.examsAdditionalMaleAge) {
-				errors.push('Idade limite para exames adicionais de homens é obrigatória.')
+				errors.push('Idade limite para exames adicionais de homens e obrigatoria.')
 				errorPaths.push('product.examsAdditionalMaleAge')
 			}
 			if (data.product.examsAdditionalFemale && !data.product.examsAdditionalFemaleAge) {
-				errors.push('Idade limite para exames adicionais de mulheres é obrigatória.')
+				errors.push('Idade limite para exames adicionais de mulheres e obrigatoria.')
 				errorPaths.push('product.examsAdditionalFemaleAge')
 			}
-
-			if (
-				!data.product.propertyResidential &&
-				!data.product.propertyCommercial &&
-				!data.product.propertyMixed
-			) {
-				errors.push('Selecione ao menos um tipo de imóvel.')
+			if (!data.product.propertyResidential && !data.product.propertyCommercial && !data.product.propertyMixed) {
+				errors.push('Selecione ao menos um tipo de imovel.')
 				errorPaths.push('product.property')
 			}
 		}
 
 		if (errors.length) {
 			setErrorFields(new Set(errorPaths))
+			const duplicateError = errors.find(err => err.startswith('CNPJ digitado'))
 			setSubmitMessage(
 				errors.includes('Cadastre ao menos seguradora, canal ou produto.')
-					? 'Selecione pelo menos uma das seções (Seguradora, Canal ou Produto) para cadastrar.'
-					: 'Os campos marcados são de preenchimento obrigatório.'
+					? 'Selecione pelo menos uma das secoes (Seguradora, Canal ou Produto) para cadastrar.'
+					: duplicateError || 'Os campos marcados sao de preenchimento obrigatorio.'
 			)
-			setShowOverlay(false)
 			return
 		}
 
-		const insurerSelectedLabel =
-			data.insurer.insurerId
-				? insurerOptions.find(option => option.value === data.insurer.insurerId)?.label ?? data.insurer.insurerId ?? ''
-				: ''
-
-		const channelSelectedInsurerLabel =
-			data.channel.insurerId
-				? insurerOptions.find(option => option.value === data.channel.insurerId)?.label ?? data.channel.insurerId ?? ''
-				: ''
-
-		const productSelectedChannelLabel =
-		data.product.channelId
+		const insurerSelectedLabel = data.insurer.insurerId
+			? insurerOptions.find(option => option.value === data.insurer.insurerId)?.label ?? data.insurer.insurerId ?? ''
+			: ''
+		const channelSelectedInsurerLabel = data.channel.insurerId
+			? insurerOptions.find(option => option.value === data.channel.insurerId)?.label ?? data.channel.insurerId ?? ''
+			: ''
+		const productSelectedChannelLabel = data.product.channelId
 			? channelOptions.find(option => option.value === data.product.channelId)?.label ?? data.product.channelId ?? ''
 			: ''
-
 		const currentInsurerName = data.insurer.mode === 'new' ? data.insurer.name ?? '' : insurerSelectedLabel
 		const currentChannelName = data.channel.name ?? ''
-
 		const now = new Date().toISOString()
 
 		const payload: PartnerFormValues = {
@@ -480,83 +551,80 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 			},
 			channel: data.channel.enabled
 				? {
-						...data.channel,
-						linkedInsurerName:
-							data.channel.useCurrentInsurer === 'yes' ? currentInsurerName : channelSelectedInsurerLabel,
-						linkedInsurerId:
-							data.channel.useCurrentInsurer === 'yes'
-								? data.insurer.mode === 'select'
-									? data.insurer.insurerId ?? ''
-									: ''
-								: data.channel.insurerId ?? '',
-						status: data.channel.status || 'active',
-						createdAt: data.channel.createdAt || now,
-				  }
+					...data.channel,
+					linkedInsurerName: data.channel.useCurrentInsurer === 'yes' ? currentInsurerName : channelSelectedInsurerLabel,
+					linkedInsurerId: data.channel.useCurrentInsurer === 'yes'
+						? (data.insurer.mode === 'select' ? data.insurer.insurerId ?? '' : '')
+						: data.channel.insurerId ?? '',
+					status: data.channel.status || 'active',
+					createdAt: data.channel.createdAt || now,
+				}
 				: {
-						...data.channel,
-						linkedInsurerName: '',
-						linkedInsurerId: '',
-						insurerId: '',
-						cnpj: '',
-						name: '',
-						status: '',
-						createdAt: '',
-						suspendedAt: '',
-						cancelledAt: '',
-						reactivatedAt: '',
-				  },
+					...data.channel,
+					linkedInsurerName: '',
+					linkedInsurerId: '',
+					insurerId: '',
+					cnpj: '',
+					name: '',
+					status: '',
+					createdAt: '',
+					suspendedAt: '',
+					cancelledAt: '',
+					reactivatedAt: '',
+				},
 			product: data.product.enabled
 				? {
-						...data.product,
-						linkedChannelName:
-							data.product.useCurrentChannel === 'yes' ? currentChannelName : productSelectedChannelLabel,
-						linkedChannelId: data.product.useCurrentChannel === 'yes' ? '' : data.product.channelId ?? '',
-						status: data.product.status || 'active',
-						createdAt: data.product.createdAt || now,
-				  }
+					...data.product,
+					linkedChannelName: data.product.useCurrentChannel === 'yes' ? currentChannelName : productSelectedChannelLabel,
+					linkedChannelId: data.product.useCurrentChannel === 'yes' ? '' : data.product.channelId ?? '',
+					status: data.product.status || 'active',
+					createdAt: data.product.createdAt || now,
+				}
 				: {
-						...data.product,
-						linkedChannelName: '',
-						linkedChannelId: '',
-						channelId: '',
-						name: '',
-						status: '',
-						createdAt: '',
-						suspendedAt: '',
-						cancelledAt: '',
-						reactivatedAt: '',
-						ageMin: '',
-						ageMax: '',
-						maxTerm: '',
-						dfiEnabled: 'no',
-						dfiValue: '',
-						dfiFile: '',
-						mipValue: '',
-						examsStandard: '',
-						examsAdditionalMale: false,
-						examsAdditionalFemale: false,
-						examsAdditionalMaleAge: '',
-						examsAdditionalFemaleAge: '',
-						propertyResidential: false,
-						propertyCommercial: false,
-						propertyMixed: false,
-				  },
+					...data.product,
+					linkedChannelName: '',
+					linkedChannelId: '',
+					channelId: '',
+					name: '',
+					status: '',
+					createdAt: '',
+					suspendedAt: '',
+					cancelledAt: '',
+					reactivatedAt: '',
+					ageMin: '',
+					ageMax: '',
+					maxTerm: '',
+					dfiEnabled: 'no',
+					dfiValue: '',
+					dfiFile: '',
+					mipValue: '',
+					examsStandard: '',
+					examsAdditionalMale: false,
+					examsAdditionalFemale: false,
+					examsAdditionalMaleAge: '',
+					examsAdditionalFemaleAge: '',
+					propertyResidential: false,
+					propertyCommercial: false,
+					propertyMixed: false,
+				},
 		}
 
 		setErrorFields(new Set())
 		setSubmitMessage(null)
-
 		try {
 			sessionStorage.setItem('partnerSummary', JSON.stringify(payload))
 		} catch (err) {
 			console.error('Erro ao salvar rascunho local', err)
 		}
-
 		router.push('/partners/summary')
-
+	} catch (err) {
+		console.error('Erro ao processar envio do parceiro', err)
+		setSubmitMessage('Ocorreu um erro ao processar o cadastro. Tente novamente.')
+	} finally {
 		setShowOverlay(false)
-
 	}
+}
+
 	return (
 		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6 relative">
 			<Accordion type="multiple" defaultValue={['insurer', 'channel', 'product']}>
@@ -570,7 +638,8 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 							insurerMode={insurerMode}
 							insurerOptions={insurerOptions}
 							onModeChange={handleInsurerModeChange}
-							invalidFields={errorFields}
+							invalidFields={invalidFields}
+							duplicateCnpjMessage={insurerCnpjDuplicate ? 'CNPJ digitado já está cadastrado.' : undefined}
 						/>
 					</AccordionContent>
 				</AccordionItem>
@@ -589,7 +658,8 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 							insurerOptions={insurerOptions}
 							onToggleEnabled={enabled => setValue('channel.enabled', enabled)}
 							onChangeUseCurrentInsurer={value => setValue('channel.useCurrentInsurer', value)}
-							invalidFields={errorFields}
+							invalidFields={invalidFields}
+							duplicateCnpjMessage={channelCnpjDuplicate ? 'CNPJ digitado já está cadastrado.' : undefined}
 						/>
 					</AccordionContent>
 				</AccordionItem>
@@ -611,7 +681,7 @@ function handleInsurerModeChange(value: 'new' | 'select' | 'skip') {
 							onToggleEnabled={enabled => setValue('product.enabled', enabled)}
 							onChangeUseCurrentChannel={value => setValue('product.useCurrentChannel', value)}
 							onChangeDfiEnabled={value => setValue('product.dfiEnabled', value)}
-							invalidFields={errorFields}
+							invalidFields={invalidFields}
 						/>
 					</AccordionContent>
 				</AccordionItem>
