@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input'
 import SelectComp from '@/components/ui/select-comp'
 import { RadioGroup } from '@/components/ui/radio-group'
 import RadioOption from './radio-option'
-import type { PartnerFormValues } from '../partner-form'
+import type { PartnerFormValues } from '../partner-form-schema'
 
 type ChannelSectionProps = {
 	control: Control<PartnerFormValues>

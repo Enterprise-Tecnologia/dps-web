@@ -6,7 +6,7 @@ import { RadioGroup } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { maskToBrlCurrency } from '@/lib/utils'
 import RadioOption from './radio-option'
-import type { PartnerFormValues } from '../partner-form'
+import type { PartnerFormValues } from '../partner-form-schema'
 
 type ProductSectionProps = {
 	control: Control<PartnerFormValues>

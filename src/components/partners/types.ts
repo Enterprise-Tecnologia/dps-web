@@ -1,4 +1,4 @@
-import type { PartnerFormValues } from './partner-form'
+import type { PartnerFormValues } from './partner-form-schema'
 
 export type PartnerMockRecord = {
 	id: string

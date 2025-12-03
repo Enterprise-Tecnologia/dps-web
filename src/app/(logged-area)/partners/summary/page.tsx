@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import type { PartnerFormValues } from '@/components/partners/partner-form'
+import type { PartnerFormValues } from '@/components/partners/partner-form-schema'
 import type { PartnerMockRecord } from '@/components/partners/types'
 import {
 	Dialog,
