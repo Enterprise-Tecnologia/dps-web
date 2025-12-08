@@ -25,6 +25,7 @@ const authMiddleware = withAuth({
 
 const PUBLIC_PATHS = [
 	/^\/api\/auth(?:\/|$)/,
+	/^\/api\/partners(?:\/|$)/,
 	/^\/login(?:\/|$)/,
 	/^\/logout(?:\/|$)/,
 	/^\/forgot-password(?:\/|$)/,

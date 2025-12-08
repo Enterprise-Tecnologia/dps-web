@@ -13,11 +13,12 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog'
 
-
 export default function PartnerSummaryPage() {
 	const router = useRouter()
 	const [data, setData] = useState<PartnerFormValues | null>(null)
 	const [showSuccess, setShowSuccess] = useState(false)
+	const [submitError, setSubmitError] = useState<string | null>(null)
+	const [isSending, setIsSending] = useState(false)
 
 	useEffect(() => {
 		try {
@@ -28,9 +29,24 @@ export default function PartnerSummaryPage() {
 		}
 	}, [])
 
-	function handleConfirm() {
+	async function handleConfirm() {
+		if (!data) return
+		setSubmitError(null)
+		setIsSending(true)
+
 		try {
-			if (typeof window !== 'undefined' && data) {
+			const response = await fetch('/api/partners/webhook', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(data),
+			})
+
+			if (!response.ok) {
+				let message = 'Falha ao enviar cadastro. Tente novamente.'
+				throw new Error(message)
+			}
+
+			if (typeof window !== 'undefined') {
 				const stored = localStorage.getItem('partnersMock')
 				const existing = stored ? (JSON.parse(stored) as PartnerMockRecord[]) : []
 				const record: PartnerMockRecord = {
@@ -41,10 +57,16 @@ export default function PartnerSummaryPage() {
 				localStorage.setItem('partnersMock', JSON.stringify([...existing, record]))
 				sessionStorage.setItem('partnerSummary', JSON.stringify(data))
 			}
+
+			setShowSuccess(true)
 		} catch (err) {
-			console.error('Erro ao salvar mock de parceiros', err)
+			console.error('Erro ao enviar cadastro para webhook', err)
+			setSubmitError(
+				err instanceof Error ? err.message : 'Falha ao enviar cadastro. Tente novamente.'
+			)
+		} finally {
+			setIsSending(false)
 		}
-		setShowSuccess(true)
 	}
 
 	function handleCorrect() {
@@ -106,9 +128,17 @@ export default function PartnerSummaryPage() {
 						<Button variant="outline" onClick={handleCorrect}>
 							Corrigir
 						</Button>
-						<Button onClick={handleConfirm}>Confirmar</Button>
+						<Button onClick={handleConfirm} disabled={isSending}>
+							{isSending ? 'Enviando...' : 'Confirmar'}
+						</Button>
 					</div>
 				</div>
+
+				{submitError ? (
+					<div className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2">
+						{submitError}
+					</div>
+				) : null}
 
 				<section className="space-y-2 rounded-2xl border bg-white p-5 shadow-sm">
 					<h2 className="text-lg font-semibold text-primary">Seguradora</h2>
@@ -116,7 +146,7 @@ export default function PartnerSummaryPage() {
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
 							<Item label="Modo">Sim, com dados novos</Item>
 							<Item label="CNPJ">{data.insurer.cnpj || 'Não informado'}</Item>
-							<Item label="Raz?o social">{data.insurer.name || 'Não informado'}</Item>
+							<Item label="Razão social">{data.insurer.name || 'Não informado'}</Item>
 						</dl>
 					) : data.insurer.mode === 'select' ? (
 						<dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -155,14 +185,14 @@ export default function PartnerSummaryPage() {
 									<Item label="Canal selecionado">{data.product.linkedChannelName || data.product.channelId || 'Não informado'}</Item>
 								) : null}
 								<Item label="Modelo de aceitação">
-									{data.product.acceptanceModel === 'complete' ? 'Modelo completo' : 'Modelo simplificado'}
+									{data.product.acceptanceModel || 'Não informado'}
 								</Item>
 							</dl>
 
 							<div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-								<Item label="Idade mínima">{data.product.ageMin || '—'}</Item>
-								<Item label="Idade máxima">{data.product.ageMax || '—'}</Item>
-								<Item label="Prazo máximo (meses)">{data.product.maxTerm || '—'}</Item>
+								<Item label="Idade mínima">{data.product.ageMin || '-'}</Item>
+								<Item label="Idade máxima">{data.product.ageMax || '-'}</Item>
+								<Item label="Prazo máximo (meses)">{data.product.maxTerm || '-'}</Item>
 							</div>
 
 							<div className="space-y-1">
@@ -170,27 +200,27 @@ export default function PartnerSummaryPage() {
 								<p>{data.product.dfiEnabled === 'yes' ? 'Sim' : 'Não'}</p>
 								{data.product.dfiEnabled === 'yes' ? (
 									<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-										<Item label="Valor DFI">{data.product.dfiValue || '—'}</Item>
-										<Item label="MIP">{data.product.mipValue || '—'}</Item>
-										<Item label="Anexo DFI">{data.product.dfiFile || '—'}</Item>
+										<Item label="Valor DFI">{data.product.dfiValue || '-'}</Item>
+										<Item label="MIP">{data.product.mipValue || '-'}</Item>
+										<Item label="Anexo DFI">{data.product.dfiFile || '-'}</Item>
 									</div>
 								) : (
-									<Item label="MIP">{data.product.mipValue || '—'}</Item>
+									<Item label="MIP">{data.product.mipValue || '-'}</Item>
 								)}
 							</div>
 
 							<div className="space-y-1">
 								<p className="font-medium text-primary text-sm">Exames médicos</p>
-								<Item label="Exames padrão">{data.product.examsStandard || '—'}</Item>
+								<Item label="Exames padrão">{data.product.examsStandard || '-'}</Item>
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 									<Item label="Exames adicionais (homens)">
 										{data.product.examsAdditionalMale
-											? `Idade limite: ${data.product.examsAdditionalMaleAge || '—'}`
+											? `Idade limite: ${data.product.examsAdditionalMaleAge || '-'}`
 											: 'Não informado'}
 									</Item>
 									<Item label="Exames adicionais (mulheres)">
 										{data.product.examsAdditionalFemale
-											? `Idade limite: ${data.product.examsAdditionalFemaleAge || '—'}`
+											? `Idade limite: ${data.product.examsAdditionalFemaleAge || '-'}`
 											: 'Não informado'}
 									</Item>
 								</div>
@@ -220,7 +250,7 @@ export default function PartnerSummaryPage() {
 						<DialogTitle>Cadastro confirmado</DialogTitle>
 					</DialogHeader>
 					<div className="text-sm text-muted-foreground space-y-1">
-						<p>Resumo salvo localmente no navegador para testes.</p>
+						<p>Cadastro enviado e salvo no Supabase.</p>
 					</div>
 					<DialogFooter>
 						<Button onClick={() => handleCloseSuccess(false)}>Fechar</Button>

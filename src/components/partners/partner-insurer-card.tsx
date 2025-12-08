@@ -20,6 +20,7 @@ import {
 	type StatusValue,
 	type TreeInsurer,
 } from './partner-list-helpers'
+import { formatCurrencyBRL } from './partner-list-utils'
 
 type PartnerInsurerCardProps = {
 	insurer: TreeInsurer
@@ -28,9 +29,10 @@ type PartnerInsurerCardProps = {
 		ids: string[],
 		newStatus: 'active' | 'suspended' | 'cancelled'
 	) => void
+	isUpdating?: boolean
 }
 
-export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerInsurerCardProps) {
+export default function PartnerInsurerCard({ insurer, onUpdateStatus, isUpdating }: PartnerInsurerCardProps) {
 	const insurerStatus = getCurrentStatus(insurer.details)
 	const isInsurerCancelled = insurerStatus === 'cancelled'
 	const [confirmAction, setConfirmAction] = useState<{
@@ -111,15 +113,6 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 									<span className="text-foreground font-semibold">CNPJ:</span> {insurer.details.cnpj}
 								</p>
 							) : null}
-							{insurer.details.insurerId ? (
-								<p>
-									<span className="text-foreground font-semibold">Selecionada:</span> {insurer.details.insurerId}
-								</p>
-							) : null}
-							<p>
-								<span className="text-foreground font-semibold">Modo:</span>{' '}
-								{insurer.details.mode || 'Não informado'}
-							</p>
 							{insurer.details.createdAt ? (
 								<p>
 									<span className="text-foreground font-semibold">Criado em:</span>{' '}
@@ -145,10 +138,11 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 								</p>
 							) : null}
 						</div>
-						<StatusActions
-							status={insurerStatus}
-							onChange={handleInsurerStatusChange}
-						/>
+							<StatusActions
+								status={insurerStatus}
+								onChange={handleInsurerStatusChange}
+								disabled={isUpdating}
+							/>
 					</DialogContent>
 				</Dialog>
 			</div>
@@ -163,6 +157,7 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 						const hasBlockingProducts = channel.products.some(
 							product => !['cancelled', 'suspended'].includes(normalizeStatus(product.details.status))
 						)
+						const linkedInsurerName = insurer.details.name || insurer.name || 'Seguradora vinculada'
 						const handleChannelStatusChange = (next: 'active' | 'suspended' | 'cancelled') => {
 							if (next === 'suspended') {
 								if (hasBlockingProducts) {
@@ -228,14 +223,10 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 														<span className="text-foreground font-semibold">CNPJ:</span> {channel.details.cnpj}
 													</p>
 												) : null}
-												<p>
-													<span className="text-foreground font-semibold">Vincular seguradora atual?</span>{' '}
-													{yesNo(channel.details.useCurrentInsurer)}
-												</p>
 												{channel.details.insurerId ? (
 													<p>
-														<span className="text-foreground font-semibold">Seguradora selecionada:</span>{' '}
-														{channel.details.insurerId}
+														<span className="text-foreground font-semibold">Seguradora vinculada:</span>{' '}
+														{linkedInsurerName}
 													</p>
 												) : null}
 												{channel.details.createdAt ? (
@@ -263,15 +254,16 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 													</p>
 												) : null}
 											</div>
-											<StatusActions
-												status={channelStatus}
-												onChange={handleChannelStatusChange}
-											/>
-										</DialogContent>
-									</Dialog>
-								</div>
+										<StatusActions
+											status={channelStatus}
+											onChange={handleChannelStatusChange}
+											disabled={isUpdating}
+										/>
+									</DialogContent>
+								</Dialog>
+							</div>
 
-								<div className="pl-2">
+							<div className="pl-2">
 									{channel.products.length ? (
 										<div className="flex flex-wrap gap-3">
 											{channel.products.map(product => {
@@ -351,7 +343,9 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 																	</p>
 																	<p>
 																		<span className="text-foreground font-semibold">Valor DFI:</span>{' '}
-																		{product.details.dfiValue || 'Não informado'}
+																		{product.details.dfiValue
+																			? formatCurrencyBRL(product.details.dfiValue)
+																			: 'Não informado'}
 																	</p>
 																	<p>
 																		<span className="text-foreground font-semibold">Anexo DFI:</span>{' '}
@@ -359,11 +353,9 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 																	</p>
 																	<p>
 																		<span className="text-foreground font-semibold">MIP:</span>{' '}
-																		{product.details.mipValue || 'Não informado'}
-																	</p>
-																	<p>
-																		<span className="text-foreground font-semibold">Vincular canal atual?</span>{' '}
-																		{yesNo(product.details.useCurrentChannel)}
+																		{product.details.mipValue
+																			? formatCurrencyBRL(product.details.mipValue)
+																			: 'Não informado'}
 																	</p>
 																	{product.details.linkedChannelName || product.details.channelId ? (
 																		<p>
@@ -425,6 +417,7 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 																<StatusActions
 																	status={productStatus}
 																	onChange={handleProductStatusChange}
+																	disabled={isUpdating}
 																/>
 															</DialogContent>
 														</Dialog>
@@ -491,9 +484,11 @@ export default function PartnerInsurerCard({ insurer, onUpdateStatus }: PartnerI
 function StatusActions({
 	status,
 	onChange,
+	disabled,
 }: {
 	status: StatusValue
 	onChange: (next: 'active' | 'suspended' | 'cancelled') => void
+	disabled?: boolean
 }) {
 	const isActive = status === 'active' || status === 'reactivated'
 	if (status === 'cancelled') return null
@@ -507,18 +502,34 @@ function StatusActions({
 						size="sm"
 						variant="secondary"
 						aria-pressed={false}
+						disabled={disabled}
 						onClick={() => onChange('suspended')}
 					>
-						Suspender
+						{disabled ? (
+							<span className="flex items-center gap-2">
+								<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								Suspender
+							</span>
+						) : (
+							'Suspender'
+						)}
 					</Button>
 					<Button
 						type="button"
 						size="sm"
 						variant="destructive"
 						aria-pressed={false}
+						disabled={disabled}
 						onClick={() => onChange('cancelled')}
 					>
-						Cancelar
+						{disabled ? (
+							<span className="flex items-center gap-2">
+								<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								Cancelar
+							</span>
+						) : (
+							'Cancelar'
+						)}
 					</Button>
 				</>
 			) : (
@@ -528,18 +539,34 @@ function StatusActions({
 						size="sm"
 						variant="default"
 						aria-pressed={false}
+						disabled={disabled}
 						onClick={() => onChange('active')}
 					>
-						Reativar
+						{disabled ? (
+							<span className="flex items-center gap-2">
+								<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								Reativar
+							</span>
+						) : (
+							'Reativar'
+						)}
 					</Button>
 					<Button
 						type="button"
 						size="sm"
 						variant="destructive"
 						aria-pressed={false}
+						disabled={disabled}
 						onClick={() => onChange('cancelled')}
 					>
-						Cancelar
+						{disabled ? (
+							<span className="flex items-center gap-2">
+								<span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+								Cancelar
+							</span>
+						) : (
+							'Cancelar'
+						)}
 					</Button>
 				</>
 			)}

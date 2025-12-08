@@ -1,4 +1,4 @@
-export type Option = { value: string; label: string; insurerId?: string }
+export type Option = { value: string; label: string; insurerId?: string; cnpj?: string }
 
 // Mocks desabilitados para evitar seguradoras/canais fixos na lista
 export const mockInsurers: Option[] = []

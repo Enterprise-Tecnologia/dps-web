@@ -22,7 +22,7 @@ export default async function PartnersPage() {
 					<div>
 						<h3 className="text-primary font-semibold">Listar parceiros</h3>
 						<p className="text-sm text-muted-foreground mt-2">
-							Registros salvos localmente até o backend ficar pronto.
+							Seus cadastros serão listados aqui.
 						</p>
 					</div>
 					<Button

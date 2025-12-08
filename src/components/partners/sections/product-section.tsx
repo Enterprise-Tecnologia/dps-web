@@ -138,8 +138,8 @@ export default function ProductSection({
 									onValueChange={field.onChange}
 									className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:max-w-md"
 								>
-									<RadioOption value="simplified" label="Modelo simplificado" />
-									<RadioOption value="complete" label="Modelo completo" />
+									<RadioOption value="simplificado" label="Modelo simplificado" />
+									<RadioOption value="completo" label="Modelo completo" />
 								</RadioGroup>
 							)}
 						/>

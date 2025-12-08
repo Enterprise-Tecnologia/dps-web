@@ -24,12 +24,6 @@ import {
 	normalizeCnpj,
 	type Option,
 } from './partner-form-helpers'
-import {
-	getExistingPartners,
-	hasActiveChannelWithCnpj,
-	hasActiveInsurerWithCnpj,
-} from './partner-storage'
-import type { PartnerMockRecord } from './types'
 import InsurerSection from './sections/insurer-section'
 import ChannelSection from './sections/channel-section'
 import ProductSection from './sections/product-section'
@@ -41,7 +35,6 @@ export default function PartnerForm() {
 	const [savedInsurers, setSavedInsurers] = useState<Option[]>([])
 	const [savedChannels, setSavedChannels] = useState<Option[]>([])
 	const [showOverlay, setShowOverlay] = useState(false)
-	const [existingPartners, setExistingPartners] = useState<PartnerMockRecord[]>([])
 
 	const {
 		control,
@@ -75,68 +68,23 @@ export default function PartnerForm() {
 	}, [reset])
 
 	useEffect(() => {
-		if (typeof window === 'undefined') return
 		let active = true
-		;(async () => {
+		const loadOptions = async () => {
 			try {
-				const partners = await getExistingPartners()
-				if (active) setExistingPartners(partners)
+				const res = await fetch('/api/partners/options', { cache: 'no-store' })
+				if (!res.ok) throw new Error(`Falha ao carregar referências (${res.status}).`)
+				const json = (await res.json()) as { insurers?: Option[]; channels?: Option[] }
+				if (active) {
+					if (json.insurers) setSavedInsurers(json.insurers)
+					if (json.channels) setSavedChannels(json.channels)
+				}
 			} catch (err) {
-				console.error('Erro ao carregar parceiros salvos para verificação de CNPJ', err)
+				console.error('Erro ao carregar referências do Supabase', err)
 			}
-		})()
+		}
+		loadOptions()
 		return () => {
 			active = false
-		}
-	}, [])
-
-	useEffect(() => {
-		if (typeof window === 'undefined') return
-		try {
-			const stored = localStorage.getItem('partnersMock')
-			if (!stored) return
-			const parsed = JSON.parse(stored) as PartnerMockRecord[]
-
-			const insurersSet = new Map<string, Option>()
-			const channelsSet = new Map<string, Option>()
-
-			parsed.forEach(record => {
-				const insurerStatus = record.data.insurer.status
-				if (!isActiveStatus(insurerStatus)) return
-
-				const insurerLabel =
-					record.data.channel.linkedInsurerName ||
-					record.data.insurer.name ||
-					record.data.insurer.selectedLabel ||
-					record.data.insurer.insurerId ||
-					''
-				if (insurerLabel) insurersSet.set(insurerLabel, { value: insurerLabel, label: insurerLabel })
-
-				const channelStatus = record.data.channel.status
-				if (!isActiveStatus(channelStatus)) return
-
-				const channelLabel =
-					record.data.product.linkedChannelName ||
-					record.data.channel.name ||
-					record.data.product.channelId ||
-					''
-				const channelInsurerId =
-					record.data.channel.insurerId ||
-					record.data.channel.linkedInsurerId ||
-					record.data.insurer.insurerId ||
-					''
-				if (channelLabel)
-					channelsSet.set(channelLabel, { value: channelLabel, label: channelLabel, insurerId: channelInsurerId })
-			})
-
-			if (insurersSet.size) {
-				setSavedInsurers(Array.from(insurersSet.values()))
-			}
-			if (channelsSet.size) {
-				setSavedChannels(Array.from(channelsSet.values()))
-			}
-		} catch (err) {
-			console.error('Erro ao carregar referências salvas', err)
 		}
 	}, [])
 
@@ -159,14 +107,20 @@ export default function PartnerForm() {
 	const insurerCnpjDuplicate = useMemo(() => {
 		if (insurerMode !== 'new') return false
 		const normalized = normalizeCnpj(insurerCnpjValue)
-		return normalized.length === 14 && hasActiveInsurerWithCnpj(existingPartners, insurerCnpjValue || '')
-	}, [existingPartners, insurerCnpjValue, insurerMode])
+		if (normalized.length !== 14) return false
+		return savedInsurers.some(
+			opt => normalizeCnpj(opt.cnpj) === normalized || normalizeCnpj(opt.value) === normalized
+		)
+	}, [insurerCnpjValue, insurerMode, savedInsurers])
 
 	const channelCnpjDuplicate = useMemo(() => {
 		if (!channelEnabled) return false
 		const normalized = normalizeCnpj(channelCnpjValue)
-		return normalized.length === 14 && hasActiveChannelWithCnpj(existingPartners, channelCnpjValue || '')
-	}, [channelCnpjValue, channelEnabled, existingPartners])
+		if (normalized.length !== 14) return false
+		return savedChannels.some(
+			opt => normalizeCnpj(opt.cnpj) === normalized || normalizeCnpj(opt.value) === normalized
+		)
+	}, [channelCnpjValue, channelEnabled, savedChannels])
 
 	const invalidFields = useMemo(() => {
 		const merged = new Set(errorFields)
@@ -179,9 +133,12 @@ export default function PartnerForm() {
 	const selectedInsurerId = watch('insurer.insurerId')
 	const channelOptions = useMemo(() => {
 		const merged = mergeUniqueOptions(savedChannels, mockChannels)
-		const insurerFilter = selectedInsurerId || ''
+		const insurerFilter = normalizeCnpj(selectedInsurerId) || selectedInsurerId || ''
 		if (!insurerFilter) return merged
-		return merged.filter(opt => opt.insurerId === insurerFilter)
+		return merged.filter(opt => {
+			const optInsurer = normalizeCnpj(opt.insurerId) || opt.insurerId || ''
+			return optInsurer === insurerFilter
+		})
 	}, [savedChannels, selectedInsurerId])
 
 	useEffect(() => {
@@ -243,7 +200,6 @@ export default function PartnerForm() {
 			const errors: string[] = []
 			const errorPaths: string[] = []
 			const somethingEnabled = data.insurer.mode !== 'skip' || data.channel.enabled || data.product.enabled
-			const existingRecords = await getExistingPartners()
 
 			if (!somethingEnabled) {
 				errors.push('Cadastre ao menos seguradora, canal ou produto.')
@@ -269,8 +225,12 @@ export default function PartnerForm() {
 				errorPaths.push('insurer.insurerId')
 			}
 			if (data.insurer.mode === 'new' && data.insurer.cnpj) {
-				if (hasActiveInsurerWithCnpj(existingRecords, data.insurer.cnpj)) {
-					errors.push('CNPJ digitado jǭ estǭ cadastrado.')
+				const normalized = normalizeCnpj(data.insurer.cnpj)
+				const exists = savedInsurers.some(
+					opt => normalizeCnpj(opt.cnpj) === normalized || normalizeCnpj(opt.value) === normalized
+				)
+				if (exists) {
+					errors.push('CNPJ digitado já está cadastrado.')
 					errorPaths.push('insurer.cnpj')
 				}
 			}
@@ -288,8 +248,12 @@ export default function PartnerForm() {
 				errorPaths.push('channel.insurerId')
 			}
 			if (data.channel.enabled && data.channel.cnpj) {
-				if (hasActiveChannelWithCnpj(existingRecords, data.channel.cnpj)) {
-					errors.push('CNPJ digitado jǭ estǭ cadastrado.')
+				const normalized = normalizeCnpj(data.channel.cnpj)
+				const exists = savedChannels.some(
+					opt => normalizeCnpj(opt.cnpj) === normalized || normalizeCnpj(opt.value) === normalized
+				)
+				if (exists) {
+					errors.push('CNPJ digitado já está cadastrado.')
 					errorPaths.push('channel.cnpj')
 				}
 			}
@@ -360,17 +324,36 @@ export default function PartnerForm() {
 				return
 			}
 
-			const insurerSelectedLabel = data.insurer.insurerId
-				? insurerOptions.find(option => option.value === data.insurer.insurerId)?.label ?? data.insurer.insurerId ?? ''
-				: ''
-			const channelSelectedInsurerLabel = data.channel.insurerId
-				? insurerOptions.find(option => option.value === data.channel.insurerId)?.label ?? data.channel.insurerId ?? ''
-				: ''
-			const productSelectedChannelLabel = data.product.channelId
-				? channelOptions.find(option => option.value === data.product.channelId)?.label ?? data.product.channelId ?? ''
-				: ''
+			const insurerSelected = data.insurer.insurerId
+				? insurerOptions.find(option => option.value === data.insurer.insurerId)
+				: undefined
+			const insurerSelectedLabel = insurerSelected?.label ?? data.insurer.insurerId ?? ''
+			const insurerSelectedCnpj = insurerSelected?.cnpj ?? ''
+
+			const channelSelectedInsurer = data.channel.insurerId
+				? insurerOptions.find(option => option.value === data.channel.insurerId)
+				: undefined
+			const channelSelectedInsurerLabel = channelSelectedInsurer?.label ?? data.channel.insurerId ?? ''
+			const channelSelectedInsurerCnpj = channelSelectedInsurer?.cnpj ?? ''
+
+			const productSelectedChannel = data.product.channelId
+				? channelOptions.find(option => option.value === data.product.channelId)
+				: undefined
+			const productSelectedChannelLabel = productSelectedChannel?.label ?? data.product.channelId ?? ''
+			const productSelectedChannelCnpj =
+				normalizeCnpj(productSelectedChannel?.cnpj) ||
+				normalizeCnpj(productSelectedChannel?.value ?? '') ||
+				normalizeCnpj(data.product.channelId) ||
+				productSelectedChannel?.cnpj ||
+				''
+
 			const currentInsurerName = data.insurer.mode === 'new' ? data.insurer.name ?? '' : insurerSelectedLabel
+			const currentInsurerCnpj =
+				data.insurer.mode === 'new'
+					? normalizeCnpj(data.insurer.cnpj) || data.insurer.cnpj || ''
+					: normalizeCnpj(insurerSelectedCnpj) || insurerSelectedCnpj
 			const currentChannelName = data.channel.name ?? ''
+			const currentChannelCnpj = normalizeCnpj(data.channel.cnpj) || data.channel.cnpj || ''
 			const now = new Date().toISOString()
 
 			const payload: PartnerFormValues = {
@@ -378,8 +361,18 @@ export default function PartnerForm() {
 				insurer: {
 					...data.insurer,
 					selectedLabel: insurerSelectedLabel,
-					status: data.insurer.status || 'active',
-					createdAt: data.insurer.createdAt || now,
+					insurerCnpj: currentInsurerCnpj,
+					insurerId:
+						data.insurer.mode === 'new'
+							? ''
+							: normalizeCnpj(insurerSelectedCnpj) || insurerSelectedCnpj || insurerSelectedLabel,
+					status: data.insurer.mode === 'new' ? data.insurer.status || 'active' : '',
+					createdAt: data.insurer.mode === 'new' ? data.insurer.createdAt || now : '',
+					cnpj: data.insurer.mode === 'new' ? data.insurer.cnpj : '',
+					name: data.insurer.mode === 'new' ? data.insurer.name : '',
+					suspendedAt: data.insurer.mode === 'new' ? data.insurer.suspendedAt : '',
+					cancelledAt: data.insurer.mode === 'new' ? data.insurer.cancelledAt : '',
+					reactivatedAt: data.insurer.mode === 'new' ? data.insurer.reactivatedAt : '',
 				},
 				channel: data.channel.enabled
 					? {
@@ -387,10 +380,16 @@ export default function PartnerForm() {
 							linkedInsurerName: data.channel.useCurrentInsurer === 'yes' ? currentInsurerName : channelSelectedInsurerLabel,
 							linkedInsurerId:
 								data.channel.useCurrentInsurer === 'yes'
-									? data.insurer.mode === 'select'
-										? data.insurer.insurerId ?? ''
-										: ''
-									: data.channel.insurerId ?? '',
+									? normalizeCnpj(currentInsurerCnpj) || currentInsurerCnpj || currentInsurerName
+									: normalizeCnpj(channelSelectedInsurerCnpj) || channelSelectedInsurerCnpj || data.channel.insurerId || '',
+							insurerId:
+								data.channel.useCurrentInsurer === 'yes'
+									? normalizeCnpj(currentInsurerCnpj) || currentInsurerCnpj || currentInsurerName
+									: normalizeCnpj(channelSelectedInsurerCnpj) || channelSelectedInsurerCnpj || data.channel.insurerId || '',
+							insurerCnpj:
+								data.channel.useCurrentInsurer === 'yes'
+									? normalizeCnpj(currentInsurerCnpj) || currentInsurerCnpj
+									: normalizeCnpj(channelSelectedInsurerCnpj) || channelSelectedInsurerCnpj,
 							status: data.channel.status || 'active',
 							createdAt: data.channel.createdAt || now,
 					  }
@@ -399,6 +398,7 @@ export default function PartnerForm() {
 							linkedInsurerName: '',
 							linkedInsurerId: '',
 							insurerId: '',
+							insurerCnpj: '',
 							cnpj: '',
 							name: '',
 							status: '',
@@ -411,7 +411,18 @@ export default function PartnerForm() {
 					? {
 							...data.product,
 							linkedChannelName: data.product.useCurrentChannel === 'yes' ? currentChannelName : productSelectedChannelLabel,
-							linkedChannelId: data.product.useCurrentChannel === 'yes' ? '' : data.product.channelId ?? '',
+							linkedChannelId:
+								data.product.useCurrentChannel === 'yes'
+									? normalizeCnpj(currentChannelCnpj) || currentChannelCnpj || currentChannelName
+									: productSelectedChannelCnpj || data.product.channelId || '',
+							channelId:
+								data.product.useCurrentChannel === 'yes'
+									? normalizeCnpj(currentChannelCnpj) || currentChannelCnpj || currentChannelName
+									: productSelectedChannelCnpj || data.product.channelId || '',
+							channelCnpj:
+								data.product.useCurrentChannel === 'yes'
+									? normalizeCnpj(currentChannelCnpj) || currentChannelCnpj
+									: productSelectedChannelCnpj,
 							status: data.product.status || 'active',
 							createdAt: data.product.createdAt || now,
 					  }
@@ -419,6 +430,7 @@ export default function PartnerForm() {
 							...data.product,
 							linkedChannelName: '',
 							linkedChannelId: '',
+							channelCnpj: '',
 							channelId: '',
 							name: '',
 							status: '',
@@ -446,12 +458,14 @@ export default function PartnerForm() {
 
 			setErrorFields(new Set())
 			setSubmitMessage(null)
+
 			try {
 				sessionStorage.setItem('partnerSummary', JSON.stringify(payload))
+				router.push('/partners/summary')
 			} catch (err) {
 				console.error('Erro ao salvar rascunho local', err)
+				setSubmitMessage('Ocorreu um erro ao preparar o resumo. Tente novamente.')
 			}
-			router.push('/partners/summary')
 		} catch (err) {
 			console.error('Erro ao processar envio do parceiro', err)
 			setSubmitMessage('Ocorreu um erro ao processar o cadastro. Tente novamente.')
@@ -474,7 +488,7 @@ export default function PartnerForm() {
 							insurerOptions={insurerOptions}
 							onModeChange={handleInsurerModeChange}
 							invalidFields={invalidFields}
-							duplicateCnpjMessage={insurerCnpjDuplicate ? 'CNPJ digitado jǭ estǭ cadastrado.' : undefined}
+							duplicateCnpjMessage={insurerCnpjDuplicate ? 'CNPJ digitado já está cadastrado.' : undefined}
 						/>
 					</AccordionContent>
 				</AccordionItem>
@@ -494,7 +508,7 @@ export default function PartnerForm() {
 							onToggleEnabled={enabled => setValue('channel.enabled', enabled)}
 							onChangeUseCurrentInsurer={value => setValue('channel.useCurrentInsurer', value)}
 							invalidFields={invalidFields}
-							duplicateCnpjMessage={channelCnpjDuplicate ? 'CNPJ digitado jǭ estǭ cadastrado.' : undefined}
+							duplicateCnpjMessage={channelCnpjDuplicate ? 'CNPJ digitado já está cadastrado.' : undefined}
 						/>
 					</AccordionContent>
 				</AccordionItem>
