@@ -804,6 +804,18 @@ const lastSituation: number | undefined =
 	const showCancelButton = (proposalSituation.id === 10 || proposalSituation.id === 20) && !proposalData?.riskStatus;
 	const showConfirmCancelButton = role === 'vendedor-sup' && proposalData?.riskStatus === 'CANCELED' && !proposalData.closed;
 
+	const hasAnySigned =
+		proposalSituation?.id === 21 ||
+		(proposalData?.history?.some(h => h.statusId === 21) ?? false) ||
+		(participants?.some(p => p.status?.id === 21) ?? false)
+
+	const canEditOperation =
+		(role === 'vendedor' || role === 'vendedor-sup') &&
+		!hasAnySigned &&
+		!proposalData?.riskStatus &&
+		!proposalData?.closed &&
+		!!proposalData?.contractNumber
+
 	return (
 		<div className="flex flex-col gap-5 p-5">
 			<div className="px-5 py-7 w-full max-w-7xl mx-auto bg-white rounded-3xl">
@@ -957,6 +969,11 @@ const lastSituation: number | undefined =
 							>
 								Visualizar DPS
 							</Button>
+							{canEditOperation && (
+								<Button variant="secondary" asChild>
+									<Link href={`/dps/operation/${proposalData.contractNumber}/edit`}>Editar operação</Link>
+								</Button>
+							)}
 							{showSignLink && (
 								<Button
 									variant="outline"

@@ -734,6 +734,33 @@ export async function postProposalOperation(
 	return null
 }
 
+export async function putProposalOperationUpdate(
+	token: string,
+	operationNumber: string,
+	body: {
+		salesChannelUid?: string
+		totalParticipantsExpected: number
+		productId: string
+		typeId: number
+		deadlineId: number | null
+		deadlineMonths: number
+		propertyTypeId: number
+		operationValue: number
+	}
+): Promise<{ success: boolean; message: string; data?: any } | null> {
+	try {
+		const response = await axios.put(`v1/proposal/${operationNumber}`, body, {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+		if (response.data) return response.data
+		throw new Error('Unsuccessful request')
+	} catch (err) {
+		console.log(err)
+		if ((err as any)?.status === 401) redirect('/logout')
+	}
+	return null
+}
+
 export async function getAddressByZipcode(
 	zipcode: string,
 ): Promise<{
