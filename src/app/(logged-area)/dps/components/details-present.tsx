@@ -35,7 +35,7 @@ import { useRouter } from 'next/navigation'
 import Interactions from './interactions'
 import MedReports from './med-reports'
 import MagHabitacionalExamsList from './mag-habitacional-exams-list'
-import { isMagHabitacionalProduct } from '@/constants'
+import { getTeleInterviewThresholdByProduct, isMagHabitacionalProduct } from '@/constants'
 import { calculateAge } from '@/lib/utils'
 import {
 	createPdfUrlFromBase64,
@@ -203,6 +203,14 @@ const DetailsPresent = ({
 		}
 		return computeOperationStatus([proposalData?.riskStatus])
 	}, [participants, proposalData?.riskStatus])
+
+	const teleInterviewThreshold = proposalData?.product?.name
+		? getTeleInterviewThresholdByProduct(proposalData.product.name)
+		: undefined
+	const requiresTeleInterviewByCapital =
+		typeof teleInterviewThreshold === 'number' &&
+		(proposalData.capitalMIP > teleInterviewThreshold ||
+			proposalData.capitalDFI > teleInterviewThreshold)
 
 	const operationStatusUi =
 		operationAggStatus === 'APPROVED'
@@ -781,6 +789,10 @@ const lastSituation: number | undefined =
 		proposalData.capitalMIP > 5000000
 	const showDfiAlertToSubscriber: boolean | undefined =
 		role === 'subscritor' && proposalData.dfiStatus?.id === 29
+	const showTeleInterviewAlert: boolean =
+		(role === 'subscritor' || role === 'subscritor-sup') &&
+		operationAggStatus === 'IN_PROGRESS' &&
+		requiresTeleInterviewByCapital
 	const showReanalisys: boolean =
 		role === 'vendedor-sup' &&
 		proposalData.riskStatus === 'REFUSED' &&
@@ -1404,6 +1416,22 @@ const lastSituation: number | undefined =
 						</h4>
 						<ul className="ml-5 text-base text-orange-400 list-disc">
 							<li>Necessário validar o laudo DFI inserido.</li>
+						</ul>
+					</div>
+				</div>
+			)}
+
+			{showTeleInterviewAlert && (
+				<div className="px-3 py-2 flex flex-row justify-between items-center gap-5 w-full max-w-7xl mx-auto bg-orange-300/40 border border-orange-300/80 rounded-xl">
+					<div>
+						<h4 className="text-base font-semibold text-orange-600">
+							Ações pendentes
+						</h4>
+						<ul className="ml-5 text-base text-orange-400 list-disc">
+							<li>
+								Este cliente deve obrigatoriamente passar por um atendimento de
+								tele-entrevista como etapa necessária do processo.
+							</li>
 						</ul>
 					</div>
 				</div>
