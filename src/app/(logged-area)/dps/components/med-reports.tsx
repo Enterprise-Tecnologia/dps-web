@@ -315,13 +315,18 @@ export default function MedReports({
 
 			try {
 				const newStatus = isApproved ? 6 : 37
+				const statusText = isApproved ? 'APROVADA' : 'NEGADA'
+				const justification = !isApproved ? rejectJustification?.trim() : ''
+				const description = `Análise de MIP concluída: ${statusText}${
+					justification ? ` - ${justification}` : ''
+				}`
 				console.log(`Iniciando ${isApproved ? 'aprovação' : 'reprovação'} de MIP com status:`, newStatus)
 
 				const response = await postStatus(
 					token,
 					uid,
 					newStatus,
-					'Análise de MIP concluída',
+					description,
 					'MIP'
 				)
 
@@ -331,6 +336,11 @@ export default function MedReports({
 					if (response.success) {
 						console.log('Análise de MIP concluída com sucesso')
 						onConfirmProp?.()
+						if (isApproved) {
+							setTimeout(() => {
+								onConfirmProp?.()
+							}, 1500)
+						}
 						reloadReports()
 					} else {
 						console.error('Erro na resposta (review):', response.message)

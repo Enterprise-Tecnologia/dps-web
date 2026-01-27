@@ -185,11 +185,16 @@ export default function DfiReports({
 			})
 			setIsFinishing(true)
 
+				const justification = rejectJustification?.trim()
+				const description = `Aguardando análise DFI${
+					justification ? `: ${justification}` : ''
+				}`
+
 			const response = await postStatus(
 				token,
 				uid,
 				29,
-				'Aguardando análise DFI',
+					description,
 				'DFI'
 			)
 
@@ -252,18 +257,28 @@ export default function DfiReports({
 				setIsFinishing(true)
 
 				const newStatus = isApproved ? 35 : 36
+				const statusText = isApproved ? 'APROVADA' : 'NEGADA'
+				const justification = !isApproved ? rejectJustification?.trim() : ''
+				const description = `Análise de DFI concluída: ${statusText}${
+					justification ? ` - ${justification}` : ''
+				}`
 
 				const response = await postStatus(
 					token,
 					uid,
 					newStatus,
-					'Análise de DFI concluída',
+					description,
 					'DFI'
 				)
 
 				if (response) {
 					if (response.success) {
 						onConfirmProp?.()
+						if (isApproved) {
+							setTimeout(() => {
+								onConfirmProp?.()
+							}, 1500)
+						}
 						reloadReports()
 						setRejectJustification('')
 					} else {
@@ -590,14 +605,6 @@ export function JustificationTextarea({
 	rejectJustification: string
 	setRejectJustification: (value: string) => void
 }) {
-	const [justification, setJustification] = React.useState(
-		rejectJustificationProp
-	)
-
-	useEffect(() => {
-		setRejectJustificationProp(justification)
-	}, [justification, setRejectJustificationProp])
-
 	return (
 		<div className="mt-2">
 			<Label htmlFor="reject-justification-input" className="text-foreground">
@@ -607,9 +614,9 @@ export function JustificationTextarea({
 			<Textarea
 				id="reject-justification-input"
 				className="text-foreground"
-				value={justification}
+				value={rejectJustificationProp}
 				onChange={e => {
-					setJustification(e.target.value)
+					setRejectJustificationProp(e.target.value)
 				}}
 			></Textarea>
 		</div>

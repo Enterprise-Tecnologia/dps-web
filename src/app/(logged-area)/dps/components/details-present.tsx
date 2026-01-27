@@ -73,6 +73,7 @@ export const statusDescriptionDict: Record<number, string> = {
 	33: 'Enviado para subscrição',
 	34: 'DFI Avaliada',
 	38: 'Processo finalizado',
+	39: 'Processo aprovada tacitamente',
 	40: 'Processo em reanálise',
 	41: 'Processo reanalisado',
 	42: 'MIP Avaliada',
