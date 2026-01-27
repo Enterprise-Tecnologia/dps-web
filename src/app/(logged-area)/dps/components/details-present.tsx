@@ -189,10 +189,11 @@ const DetailsPresent = ({
 
 	const isDfiNotApplicable = React.useMemo(() => {
 		const desc = proposalSituationDFI?.description ?? ''
+		const isAwaitingAnalysis = /aguardando\s+análise\s+do\s+laudo\s+dfi/i.test(desc)
 		const isCoparticipant = currentParticipantType != null && currentParticipantType !== 'P'
 		const isConstrucasa = /construcasa/i.test(proposalData?.product?.name ?? '')
 		const byDescription = /nao\s+aplic|não\s+aplic/i.test(desc)
-		return isCoparticipant || isConstrucasa || byDescription
+		return !isAwaitingAnalysis && (isCoparticipant || isConstrucasa || byDescription)
 	}, [currentParticipantType, proposalSituationDFI?.description, proposalData?.product?.name])
 
 	const operationAggStatus = React.useMemo(() => {
@@ -1139,9 +1140,12 @@ const lastSituation: number | undefined =
 															<Badge
 																variant={getStatusBadgeVariant(participantStatus)}
 																shape="pill"
-																className="text-xs"
+																className="text-xs max-w-[220px] min-w-0 whitespace-nowrap"
+																title={`MIP: ${participant.status.description}`}
 															>
-																MIP: {participant.status.description}
+																<span className="truncate">
+																	MIP: {participant.status.description}
+																</span>
 															</Badge>
 														)}
 														{participant.dfiStatus && (
@@ -1149,10 +1153,15 @@ const lastSituation: number | undefined =
 																const dfiDescription = participant.dfiStatus?.description as
 																	| string
 																	| undefined
+																const isDfiAwaitingAnalysis =
+																	/aguardando\s+análise\s+do\s+laudo\s+dfi/i.test(
+																		dfiDescription ?? ''
+																	)
 																const isDfiNotApplicable =
-																	participant.participantType !== 'P' ||
-																	participant.capitalDFI === 0 ||
-																	/nao\s+aplic|não\s+aplic/i.test(dfiDescription ?? '')
+																	!isDfiAwaitingAnalysis &&
+																	(participant.participantType !== 'P' ||
+																		participant.capitalDFI === 0 ||
+																		/nao\s+aplic|não\s+aplic/i.test(dfiDescription ?? ''))
 
 																return (
 																	<Badge
@@ -1163,13 +1172,16 @@ const lastSituation: number | undefined =
 																		}
 																		shape="pill"
 																		className={cn(
-																			'text-xs',
+																			'text-xs max-w-[220px] min-w-0 whitespace-nowrap',
 																			isDfiNotApplicable
 																				? 'text-gray-400 border-gray-200 bg-gray-50'
 																				: ''
 																		)}
+																		title={`DFI: ${participant.dfiStatus.description}`}
 																	>
-																		DFI: {participant.dfiStatus.description}
+																		<span className="truncate">
+																			DFI: {participant.dfiStatus.description}
+																		</span>
 																	</Badge>
 																)
 															})()

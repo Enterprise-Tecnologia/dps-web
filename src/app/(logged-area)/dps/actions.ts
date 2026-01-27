@@ -60,6 +60,11 @@ export type ProposalByUid = {
 	history: {
 	  description: string;
 	  statusId: number;
+	  user?: {
+	    uid?: string;
+	    name?: string;
+	    email?: string;
+	  };
 	  created: string;
 	}[];
   riskStatus?: string;
