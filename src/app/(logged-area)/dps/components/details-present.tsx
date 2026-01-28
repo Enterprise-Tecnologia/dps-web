@@ -771,13 +771,6 @@ const DetailsPresent = ({
 const lastSituation: number | undefined =
 		proposalData.history?.at(0)?.statusId
 
-	const showFillOutAlert: boolean | undefined =
-		(role === 'vendedor' || role === 'vendedor-sup') &&
-		(proposalSituation.id === 5 ||
-			proposalSituation.id === 10 ||
-			proposalData.uploadMIP ||
-			proposalData.uploadDFI)
-
 	const showMipAlertMinToMedic: boolean | undefined =
 		role === 'subscritor-med' &&
 		proposalData.status.id === 4 &&
@@ -790,9 +783,16 @@ const lastSituation: number | undefined =
 	const showDfiAlertToSubscriber: boolean | undefined =
 		role === 'subscritor' && proposalData.dfiStatus?.id === 29
 	const showTeleInterviewAlert: boolean =
-		(role === 'subscritor' || role === 'subscritor-sup') &&
+		(role === 'vendedor' || role === 'subscritor-med') &&
 		operationAggStatus === 'IN_PROGRESS' &&
-		requiresTeleInterviewByCapital
+		requiresTeleInterviewByCapital &&
+		!showMipAlertMinToMedic &&
+		!showMipAlertCompleteToMedic
+	const showFillOutAlert: boolean | undefined =
+		(role === 'vendedor' || role === 'vendedor-sup') &&
+		(proposalSituation.id === 5 ||
+			proposalSituation.id === 10 ||
+			((proposalData.uploadMIP || proposalData.uploadDFI) && !showTeleInterviewAlert))
 	const showReanalisys: boolean =
 		role === 'vendedor-sup' &&
 		proposalData.riskStatus === 'REFUSED' &&
@@ -1332,10 +1332,10 @@ const lastSituation: number | undefined =
 							{proposalSituation.id === 5 || proposalSituation.id === 10 ? (
 								<li>{statusDescriptionDict[proposalSituation.id]}</li>
 							) : null}
-							{proposalData.uploadMIP ? (
+							{proposalData.uploadMIP && !showTeleInterviewAlert ? (
 								<li>{'Upload de laudos/complementos MIP.'}</li>
 							) : null}
-							{proposalData.uploadDFI ? (
+							{proposalData.uploadDFI && !showTeleInterviewAlert ? (
 								<li>{'Upload de laudos DFI.'}</li>
 							) : null}
 							{proposalSituation.id === 25 ? (
@@ -1429,8 +1429,8 @@ const lastSituation: number | undefined =
 						</h4>
 						<ul className="ml-5 text-base text-orange-400 list-disc">
 							<li>
-								Este cliente deve obrigatoriamente passar por um atendimento de
-								tele-entrevista como etapa necessária do processo.
+								<span className='font-bold'>Aviso:</span>
+								Para avançar com a contratação do produto, será realizada tele-entrevista médica com o cliente, etapa prevista nas regras do produto e necessária para conclusão do processo.
 							</li>
 						</ul>
 					</div>
