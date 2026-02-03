@@ -1440,7 +1440,8 @@ const DetailsPresent = ({
 						<ul className="ml-5 text-base text-orange-400 list-disc">
 							<li>
 								<span className='font-bold'>Aviso:</span>
-								Para avançar com a contratação do produto, será realizada tele-entrevista médica com o cliente, etapa prevista nas regras do produto e necessária para conclusão do processo.
+								Para avançar com a contratação do produto, será realizada tele-entrevista médica com o cliente, etapa prevista nas regras do produto e necessária para conclusão do processo.<br/>
+								<span className='font-semibold'>Por favor, orientar o cliente que ele receberá contato telefônico.</span>
 							</li>
 						</ul>
 					</div>
