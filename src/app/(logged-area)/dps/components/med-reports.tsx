@@ -74,6 +74,8 @@ export default function MedReports({
 		title?: string
 		body?: ReactNode
 		onConfirm?: () => void
+		variant?: 'review' | 'message'
+		isApproved?: boolean
 	}>({
 		open: false,
 	})
@@ -283,27 +285,8 @@ export default function MedReports({
 		setAlertDialog({
 			open: true,
 			title: `Confirmação de ${isApproved ? 'Aprovação' : 'Reprovação'}`,
-			body: isApproved ? (
-				<>
-					Confirma a{' '}
-					<span className="text-base font-semibold text-primary">
-						APROVAÇÃO
-					</span>{' '}
-					da análise de MIP?
-				</>
-			) : (
-				<>
-					Confirma a{' '}
-					<span className="text-base font-semibold text-destructive">
-						REPROVAÇÃO
-					</span>{' '}
-					da análise de MIP?
-					<JustificationTextarea
-						rejectJustification={rejectJustification}
-						setRejectJustification={setRejectJustification}
-					/>
-				</>
-			),
+			variant: 'review',
+			isApproved,
 			onConfirm: changeStatus,
 		})
 
@@ -347,7 +330,9 @@ export default function MedReports({
 						setAlertDialog({
 							open: true,
 							title: 'Erro na Análise',
-							body: response.message || 'Ocorreu um erro ao concluir análise de MIP',
+							body:
+								response.message || 'Ocorreu um erro ao concluir análise de MIP',
+							variant: 'message',
 						})
 					}
 				} else {
@@ -356,6 +341,7 @@ export default function MedReports({
 						open: true,
 						title: 'Erro de Conexão',
 						body: 'Não foi possível conectar com o servidor. Verifique sua conexão e tente novamente.',
+						variant: 'message',
 					})
 				}
 			} catch (error) {
@@ -364,6 +350,7 @@ export default function MedReports({
 					open: true,
 					title: 'Erro Inesperado',
 					body: 'Ocorreu um erro inesperado ao concluir análise de MIP.',
+					variant: 'message',
 				})
 			} finally {
 				setIsFinishing(false)
@@ -555,7 +542,27 @@ export default function MedReports({
 					title={alertDialog.title ?? ''}
 					onConfirm={alertDialog.onConfirm}
 				>
-					{alertDialog.body}
+					{alertDialog.variant === 'review' ? (
+						<>
+							Confirma a{' '}
+							<span
+								className={`text-base font-semibold ${
+									alertDialog.isApproved ? 'text-primary' : 'text-destructive'
+								}`}
+							>
+								{alertDialog.isApproved ? 'APROVAÇÃO' : 'REPROVAÇÃO'}
+							</span>{' '}
+							da análise de MIP?
+							{alertDialog.isApproved ? null : (
+								<JustificationTextarea
+									rejectJustification={rejectJustification}
+									setRejectJustification={setRejectJustification}
+								/>
+							)}
+						</>
+					) : (
+						alertDialog.body
+					)}
 				</DialogAlertComp>
 
 				{isLoadingReports ? (
