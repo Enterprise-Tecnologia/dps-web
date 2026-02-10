@@ -15,6 +15,7 @@ const DialogAlertComp = ({
 	defaultOpen = false,
 	onOpenChange,
 	title,
+	description,
 	children,
 	onConfirm,
 	confirmText = 'Continuar',
@@ -23,10 +24,16 @@ const DialogAlertComp = ({
 	defaultOpen?: boolean
 	onOpenChange?: (open: boolean) => void
 	title: string
+	description?: React.ReactNode
 	children: React.ReactNode
 	onConfirm?: () => void
 	confirmText?: string
 }) => {
+	const isPlainText =
+		typeof children === 'string' || typeof children === 'number'
+	const descriptionContent = description ?? (isPlainText ? children : null)
+	const bodyContent = !isPlainText ? children : null
+
 	return (
 		<AlertDialog
 			open={open}
@@ -36,8 +43,13 @@ const DialogAlertComp = ({
 			<AlertDialogContent>
 				<AlertDialogHeader>
 					<AlertDialogTitle>{title}</AlertDialogTitle>
-					<AlertDialogDescription>{children}</AlertDialogDescription>
+					{descriptionContent ? (
+						<AlertDialogDescription>{descriptionContent}</AlertDialogDescription>
+					) : null}
 				</AlertDialogHeader>
+				{bodyContent ? (
+					<div className="text-sm text-muted-foreground">{bodyContent}</div>
+				) : null}
 				<AlertDialogFooter>
 					<AlertDialogCancel>Fechar</AlertDialogCancel>
 					{onConfirm ? (
