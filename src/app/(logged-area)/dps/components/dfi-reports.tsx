@@ -80,6 +80,8 @@ export default function DfiReports({
 		title?: string
 		body?: ReactNode
 		onConfirm?: () => void
+		variant?: 'review' | 'message'
+		isApproved?: boolean
 	}>({
 		open: false,
 	})
@@ -226,27 +228,8 @@ export default function DfiReports({
 			setAlertDialog({
 				open: true,
 				title: `Confirmação de ${isApproved ? 'Aprovação' : 'Reprovação'}`,
-				body: isApproved ? (
-					<>
-						Confirma a{' '}
-						<span className="text-base font-semibold text-primary">
-							APROVAÇÃO
-						</span>{' '}
-						da análise de DFI?
-					</>
-				) : (
-					<>
-						Confirma a{' '}
-						<span className="text-base font-semibold text-destructive">
-							REPROVAÇÃO
-						</span>{' '}
-						da análise de DFI?
-						<JustificationTextarea
-							rejectJustification={rejectJustification}
-							setRejectJustification={setRejectJustification}
-						/>
-					</>
-				),
+				variant: 'review',
+				isApproved,
 				onConfirm: changeStatus,
 			})
 
@@ -585,7 +568,27 @@ export default function DfiReports({
 					title={alertDialog.title ?? ''}
 					onConfirm={alertDialog.onConfirm}
 				>
-					{alertDialog.body}
+					{alertDialog.variant === 'review' ? (
+						<>
+							Confirma a{' '}
+							<span
+								className={`text-base font-semibold ${
+									alertDialog.isApproved ? 'text-primary' : 'text-destructive'
+								}`}
+							>
+								{alertDialog.isApproved ? 'APROVAÇÃO' : 'REPROVAÇÃO'}
+							</span>{' '}
+							da análise de DFI?
+							{alertDialog.isApproved ? null : (
+								<JustificationTextarea
+									rejectJustification={rejectJustification}
+									setRejectJustification={setRejectJustification}
+								/>
+							)}
+						</>
+					) : (
+						alertDialog.body
+					)}
 				</DialogAlertComp>
 
 				{isLoadingReports ? (
