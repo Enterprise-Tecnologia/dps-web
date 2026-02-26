@@ -78,7 +78,8 @@ export default function SideBar() {
 						<RoleBasedRender role={role} disallowedRoles={[Role.OFERTA]}>
 							<MenuSection title="Habitacional" Icon={FileTextIcon}>
 								<RoleBasedRender role={role} allowedRoles={[Role.VENDEDOR]}>
-									<MenuItem href="/dps/fill-out">Preencher DPS</MenuItem>
+									<MenuItem href="/dps/fill-out">Operação nova</MenuItem>
+									<MenuItem href="/dps/operacao-existente">Operação existente</MenuItem>
 								</RoleBasedRender>
 								<RoleBasedRender role={role} allowedRoles={[Role.SUBSCRITOR]}>
 									<MenuItem href="/dps/subscription">Subscrição</MenuItem>
@@ -94,7 +95,8 @@ export default function SideBar() {
 								<RoleBasedRender role={role} allowedRoles={[Role.VENDEDOR_SUP]}>
 									<MenuItem href="/dps/saler-sup-cancel">Exclusão</MenuItem>
 									<MenuItem href="/dps/saler-sup">Reanálise Vendedor</MenuItem>
-									<MenuItem href="/dps/fill-out">Preencher DPS</MenuItem>
+									<MenuItem href="/dps/fill-out">Operação nova</MenuItem>
+									<MenuItem href="/dps/operacao-existente">Operação existente</MenuItem>
 								</RoleBasedRender>
 								<RoleBasedRender
 									role={role}
@@ -106,6 +108,7 @@ export default function SideBar() {
 								<MenuItem href="/dashboard/table">Em andamento</MenuItem>
 							</MenuSection>
 						</RoleBasedRender>
+						{/*
 						<RoleBasedRender
 							role={role}
 							allowedRoles={
@@ -114,6 +117,7 @@ export default function SideBar() {
 						>
 							{partnerMenu}
 						</RoleBasedRender>
+						*/}
 						{/* <MenuSection title="Backup" Icon={SaveIcon}>
 							<MenuItem href="/">Realizar Backup</MenuItem>
 							<MenuItem href="/">Listar Backups</MenuItem>
