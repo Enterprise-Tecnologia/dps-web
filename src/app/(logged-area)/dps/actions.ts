@@ -60,6 +60,11 @@ export type ProposalByUid = {
 	history: {
 	  description: string;
 	  statusId: number;
+	  user?: {
+	    uid?: string;
+	    name?: string;
+	    email?: string;
+	  };
 	  created: string;
 	}[];
   riskStatus?: string;
@@ -670,6 +675,215 @@ export async function postProposal(
   return null
 }
 
+export async function postProposalOperation(
+	token: string,
+	operationNumber: string,
+	body: {
+		salesChannelUid?: string
+		totalParticipantsExpected: number
+		productId: string
+		typeId: number
+		deadlineId: number | null
+		deadlineMonths: number
+		propertyTypeId: number
+		operationValue: number
+		participants: Array<{
+			document: string
+			name: string
+			socialName: string | null
+			email: string
+			profession: string
+			gender: string
+			cellphone: string
+			birthdate: string
+			capitalMIP: number
+			capitalDFI: number
+			percentageParticipation: number
+			financingParticipation: number
+			participantType: 'P' | 'C'
+			address: {
+				zipCode: string
+				street: string
+				number: string
+				complement: string
+				neighborhood: string
+				city: string
+				state: string
+			}
+		}>
+	}
+): Promise<{
+	success: boolean
+	message: string
+	data?: {
+		operationNumber: string
+		contractProcessUid: string
+		proposalUids: Array<{
+			proposalUid: string
+			participantType: 'P' | 'C'
+			document: string
+		}>
+	}
+} | null> {
+	try {
+		// Base URL já inclui /api (NEXT_PUBLIC_API_BASE_URL), então v1/... vira /api/v1/...
+		const response = await axios.post(`v1/proposal/${operationNumber}`, body, {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+		if (response.data) return response.data
+		throw new Error('Unsuccessful request')
+	} catch (err) {
+		console.log(err)
+		if ((err as any)?.status === 401) redirect('/logout')
+	}
+	return null
+}
+
+export async function putProposalOperationUpdate(
+	token: string,
+	operationNumber: string,
+	body: {
+		salesChannelUid?: string
+		totalParticipantsExpected: number
+		productId: string
+		typeId: number
+		deadlineId: number | null
+		deadlineMonths: number
+		propertyTypeId: number
+		operationValue: number
+		capitalMIP: number
+		capitalDFI: number
+		address?: {
+			zipCode: string
+			street: string
+			number: string
+			complement: string
+			neighborhood: string
+			city: string
+			state: string
+		}
+	}
+): Promise<{ success: boolean; message: string; data?: any } | null> {
+	try {
+		// Endpoint específico de edição da operação (campos comuns)
+		const response = await axios.put(`v1/proposal/operation/${operationNumber}`, body, {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+		if (response.data) return response.data
+		throw new Error('Unsuccessful request')
+	} catch (err: any) {
+		console.error('Erro ao atualizar operação:', {
+			message: err?.message,
+			status: err?.response?.status,
+			statusText: err?.response?.statusText,
+			data: err?.response?.data,
+			url: err?.config?.url,
+			method: err?.config?.method,
+		})
+
+		if (err?.response?.status === 401) redirect('/logout')
+
+		// Retornar erro mais específico para a UI (evita cair no "null")
+		if (err?.response?.data?.message) {
+			return { success: false, message: err.response.data.message }
+		}
+
+		if (err?.response?.status) {
+			return {
+				success: false,
+				message: `Erro ${err.response.status}: ${err.response.statusText || 'Erro na requisição'}`,
+			}
+		}
+
+		return { success: false, message: err?.message || 'Erro desconhecido ao atualizar operação' }
+	}
+}
+
+export async function putProposalParticipantUpdate(
+	token: string,
+	proposalUid: string,
+	body: {
+		socialName?: string | null
+		profession: string
+		email: string
+		cellphone: string
+		gender: string
+	}
+): Promise<{ success: boolean; message: string; data?: any } | null> {
+	try {
+		// Endpoint dedicado para atualização de dados do participante por proposta
+		const response = await axios.put(`v1/proposal/${proposalUid}/participant`, body, {
+			headers: { Authorization: `Bearer ${token}` },
+		})
+		if (response.data) return response.data
+		throw new Error('Unsuccessful request')
+	} catch (err: any) {
+		// Alguns endpoints do backend expõem apenas GET/POST (405 Method Not Allowed).
+		// Se acontecer, tenta POST no mesmo endpoint.
+		const status = err?.response?.status
+		if (status === 405) {
+			try {
+				const response = await axios.post(`v1/proposal/${proposalUid}/participant`, body, {
+					headers: { Authorization: `Bearer ${token}` },
+				})
+				if (response.data) return response.data
+				throw new Error('Unsuccessful request')
+			} catch (err2: any) {
+				console.error('Erro ao atualizar participante (fallback POST):', {
+					message: err2?.message,
+					status: err2?.response?.status,
+					statusText: err2?.response?.statusText,
+					data: err2?.response?.data,
+					url: err2?.config?.url,
+					method: err2?.config?.method,
+				})
+
+				if (err2?.response?.status === 401) redirect('/logout')
+
+				if (err2?.response?.data?.message) {
+					return { success: false, message: err2.response.data.message }
+				}
+
+				if (err2?.response?.status) {
+					return {
+						success: false,
+						message: `Erro ${err2.response.status}: ${err2.response.statusText || 'Erro na requisição'}`,
+					}
+				}
+
+				return {
+					success: false,
+					message: err2?.message || 'Erro desconhecido ao atualizar participante',
+				}
+			}
+		}
+
+		console.error('Erro ao atualizar participante:', {
+			message: err?.message,
+			status: err?.response?.status,
+			statusText: err?.response?.statusText,
+			data: err?.response?.data,
+			url: err?.config?.url,
+			method: err?.config?.method,
+		})
+
+		if (err?.response?.status === 401) redirect('/logout')
+
+		if (err?.response?.data?.message) {
+			return { success: false, message: err.response.data.message }
+		}
+
+		if (err?.response?.status) {
+			return {
+				success: false,
+				message: `Erro ${err.response.status}: ${err.response.statusText || 'Erro na requisição'}`,
+			}
+		}
+
+		return { success: false, message: err?.message || 'Erro desconhecido ao atualizar participante' }
+	}
+}
+
 export async function getAddressByZipcode(
 	zipcode: string,
 ): Promise<{
@@ -908,6 +1122,23 @@ export async function postAttachmentFile(
 ): Promise<{ success: boolean; message: string } | null> {
   try {
     const response = await axios.post(`v1/Proposal/${uid}/dps/attachment`, data, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (response.data) return response.data
+    throw new Error('Unsuccessful request')
+  } catch (err) {
+    console.log(err)
+    if ((err as any)?.status === 401) redirect('/logout')
+  }
+  return null
+}
+
+export async function postMagHabitacionalAutoApproval(
+  token: string,
+  uid: string
+): Promise<{ success: boolean; message: string; data?: any } | null> {
+  try {
+    const response = await axios.post(`v1/Proposal/${uid}/dps/auto-approve`, null, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (response.data) return response.data

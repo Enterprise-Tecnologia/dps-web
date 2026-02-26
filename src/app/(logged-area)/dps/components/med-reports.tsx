@@ -9,6 +9,7 @@ import {
 } from '../actions'
 import {
 	FileTextIcon,
+	MailIcon,
 	SendIcon,
 	ThumbsDownIcon,
 	ThumbsUpIcon,
@@ -22,12 +23,23 @@ import { AlertDialog } from '@radix-ui/react-alert-dialog'
 import LoadingScreen from '@/components/loading-creen'
 import RequestComplement from './request-complement'
 import { JustificationTextarea } from './dfi-reports'
+import { formatDate } from './interactions'
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 export type DocumentType = {
 	uid: string
 	documentName: string
 	documentUrl: string
 	description: string
+	createdByUser?: {
+		name?: string
+		email?: string
+	}
 	created: Date | string
 	updated?: Date | string
 }
@@ -52,6 +64,7 @@ export default function MedReports({
 	const [pdfUrl, setPdfUrl] = React.useState<string | undefined>(undefined)
 
 	const [isFinishing, setIsFinishing] = React.useState(false)
+	const [origin, setOrigin] = React.useState('')
 
 	const [isLoadingReports, setIsLoadingReports] = React.useState(false)
 	const [rejectJustification, setRejectJustification] = React.useState('');
@@ -61,6 +74,8 @@ export default function MedReports({
 		title?: string
 		body?: ReactNode
 		onConfirm?: () => void
+		variant?: 'review' | 'message'
+		isApproved?: boolean
 	}>({
 		open: false,
 	})
@@ -145,6 +160,12 @@ export default function MedReports({
 	useEffect(() => {
 		reloadReports()
 	}, [reloadReports])
+
+	useEffect(() => {
+		if (typeof window !== 'undefined') {
+			setOrigin(window.location.origin)
+		}
+	}, [])
 
 	async function finishReportUpload() {
 		setAlertDialog({
@@ -264,27 +285,8 @@ export default function MedReports({
 		setAlertDialog({
 			open: true,
 			title: `Confirmação de ${isApproved ? 'Aprovação' : 'Reprovação'}`,
-			body: isApproved ? (
-				<>
-					Confirma a{' '}
-					<span className="text-base font-semibold text-primary">
-						APROVAÇÃO
-					</span>{' '}
-					da análise de MIP?
-				</>
-			) : (
-				<>
-					Confirma a{' '}
-					<span className="text-base font-semibold text-destructive">
-						REPROVAÇÃO
-					</span>{' '}
-					da análise de MIP?
-					<JustificationTextarea
-						rejectJustification={rejectJustification}
-						setRejectJustification={setRejectJustification}
-					/>
-				</>
-			),
+			variant: 'review',
+			isApproved,
 			onConfirm: changeStatus,
 		})
 
@@ -296,13 +298,18 @@ export default function MedReports({
 
 			try {
 				const newStatus = isApproved ? 6 : 37
+				const statusText = isApproved ? 'APROVADA' : 'NEGADA'
+				const justification = !isApproved ? rejectJustification?.trim() : ''
+				const description = `Análise de MIP concluída: ${statusText}${
+					justification ? ` - ${justification}` : ''
+				}`
 				console.log(`Iniciando ${isApproved ? 'aprovação' : 'reprovação'} de MIP com status:`, newStatus)
 
 				const response = await postStatus(
 					token,
 					uid,
 					newStatus,
-					'Análise de MIP concluída',
+					description,
 					'MIP'
 				)
 
@@ -312,13 +319,20 @@ export default function MedReports({
 					if (response.success) {
 						console.log('Análise de MIP concluída com sucesso')
 						onConfirmProp?.()
+						if (isApproved) {
+							setTimeout(() => {
+								onConfirmProp?.()
+							}, 1500)
+						}
 						reloadReports()
 					} else {
 						console.error('Erro na resposta (review):', response.message)
 						setAlertDialog({
 							open: true,
 							title: 'Erro na Análise',
-							body: response.message || 'Ocorreu um erro ao concluir análise de MIP',
+							body:
+								response.message || 'Ocorreu um erro ao concluir análise de MIP',
+							variant: 'message',
 						})
 					}
 				} else {
@@ -327,6 +341,7 @@ export default function MedReports({
 						open: true,
 						title: 'Erro de Conexão',
 						body: 'Não foi possível conectar com o servidor. Verifique sua conexão e tente novamente.',
+						variant: 'message',
 					})
 				}
 			} catch (error) {
@@ -335,6 +350,7 @@ export default function MedReports({
 					open: true,
 					title: 'Erro Inesperado',
 					body: 'Ocorreu um erro inesperado ao concluir análise de MIP.',
+					variant: 'message',
 				})
 			} finally {
 				setIsFinishing(false)
@@ -410,48 +426,100 @@ export default function MedReports({
 			<div className="relative">
 				{data?.length > 0 ? (
 					<>
-						<ul>
+						<ul className="space-y-2">
 							{data.map((document, index) => {
 								if (!document.description) return null
 
 								return (
 									<li
 										key={index}
-										className="w-full flex mt-2 p-3 justify-between items-center border rounded-xl bg-[#F4F7F7]"
+										className="w-full rounded-2xl border bg-white/80 p-4 shadow-sm transition hover:shadow-md"
 									>
-										<div className="grow-0 basis-10">
-											<Badge
-												variant="outline"
-												className="text-muted-foreground bg-white"
-											>
-												{index + 1}
-											</Badge>
-										</div>
-
-										<div className="pl-5 grow basis-1 text-left">
-											{document?.description}
-										</div>
-
-										{document.documentName && (
-											<div className="grow-0 px-3">
-												<Badge variant="warn" shape="pill">
-													{document.documentName}
+										<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+											<div className="flex items-start gap-3">
+												<Badge
+													variant="outline"
+													className="text-muted-foreground bg-white"
+												>
+													{index + 1}
 												</Badge>
+												<div className="space-y-1">
+													<div className="text-sm font-medium text-foreground">
+														{document?.description}
+													</div>
+													{(document?.createdByUser?.name || document?.created) && (
+														<div className="text-xs text-muted-foreground">
+															{document?.createdByUser?.name ? (
+																<TooltipProvider delayDuration={0}>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<span className="cursor-help underline-offset-2 hover:underline">
+																				{document.createdByUser.name}
+																			</span>
+																		</TooltipTrigger>
+																		<TooltipContent className="rounded-lg border border-border/60 bg-white/95 px-3 py-2 text-xs shadow-md">
+																			<div className="flex flex-col gap-1.5">
+																				<span className="text-foreground font-medium">
+																					{document.createdByUser.name}
+																				</span>
+																				{document.createdByUser.email ? (
+																					<a
+																						className="inline-flex items-center gap-1 text-primary underline underline-offset-2"
+																						href={`mailto:${document.createdByUser.email}?subject=${encodeURIComponent(
+																							'Subscrição Inteligente: Laudos e Complementos Médicos'
+																						)}&body=${encodeURIComponent(
+																							`Segue o link do formulário DPS: ${
+																								origin
+																									? `${origin}/dps/fill-out/form/${uid}`
+																									: `/dps/fill-out/form/${uid}`
+																							}`
+																						)}`}
+																					>
+																						<MailIcon className="h-3.5 w-3.5" />
+																						{document.createdByUser.email}
+																					</a>
+																				) : (
+																					<span className="text-muted-foreground">
+																						Email indisponível
+																					</span>
+																				)}
+																			</div>
+																		</TooltipContent>
+																	</Tooltip>
+																</TooltipProvider>
+															) : null}
+															{document?.createdByUser?.name && document?.created
+																? ' • '
+																: null}
+															{document?.created ? formatDate(document.created) : null}
+														</div>
+													)}
+												</div>
 											</div>
-										)}
 
-										{/* <div className="grow-0 px-3">{formatDate(document?.created)}</div> */}
-
-										{document.documentName && (
-											<Button
-												className="grow-0 basis-10 text-teal-900 hover:text-teal-600"
-												variant={`ghost`}
-												onClick={() => handleViewArchive(document.uid)}
-											>
-												<FileTextIcon className="mr-2" />
-												Abrir Arquivo
-											</Button>
-										)}
+											<div className="flex flex-wrap items-center gap-2">
+												{document.documentName && (
+													<Badge
+														variant="warn"
+														shape="pill"
+														role="button"
+														tabIndex={0}
+														title={document.documentName}
+														className="max-w-[320px] cursor-pointer select-none gap-2 rounded-md px-3 py-2 text-xs font-normal text-[#556B2F] bg-[#FFF6D6] border border-[#F2E4B6]"
+														onClick={() => handleViewArchive(document.uid)}
+														onKeyDown={event => {
+															if (event.key === 'Enter' || event.key === ' ') {
+																event.preventDefault()
+																handleViewArchive(document.uid)
+															}
+														}}
+													>
+														<FileTextIcon className="h-5 w-5" />
+														<span className="truncate">{document.documentName}</span>
+													</Badge>
+												)}
+											</div>
+										</div>
 									</li>
 								)
 							})}
@@ -474,7 +542,27 @@ export default function MedReports({
 					title={alertDialog.title ?? ''}
 					onConfirm={alertDialog.onConfirm}
 				>
-					{alertDialog.body}
+					{alertDialog.variant === 'review' ? (
+						<>
+							Confirma a{' '}
+							<span
+								className={`text-base font-semibold ${
+									alertDialog.isApproved ? 'text-primary' : 'text-destructive'
+								}`}
+							>
+								{alertDialog.isApproved ? 'APROVAÇÃO' : 'REPROVAÇÃO'}
+							</span>{' '}
+							da análise de MIP?
+							{alertDialog.isApproved ? null : (
+								<JustificationTextarea
+									rejectJustification={rejectJustification}
+									setRejectJustification={setRejectJustification}
+								/>
+							)}
+						</>
+					) : (
+						alertDialog.body
+					)}
 				</DialogAlertComp>
 
 				{isLoadingReports ? (
