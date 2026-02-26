@@ -8,8 +8,9 @@ import { redirect } from 'next/navigation'
 import { getParticipantsByOperation, getProposalByUid } from '../../actions'
 import { formatCpf } from '@/lib/utils'
 import { computeOperationStatus } from '@/utils/operation-aggregation'
-import { SquareArrowUpRightIcon, Undo2Icon, UsersIcon } from 'lucide-react'
+import { SquareArrowUpRightIcon, Undo2Icon, UsersIcon, WorkflowIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isConstrucasaProduct } from '@/constants'
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
@@ -111,6 +112,7 @@ export default async function OperationParticipantsPage({
 				status: detail?.data?.status,
 				dfiStatus: detail?.data?.dfiStatus,
 				riskStatus: detail?.data?.riskStatus ?? p?.riskStatus,
+				product: detail?.data?.product,
 			}
 		})
 	)
@@ -128,6 +130,19 @@ export default async function OperationParticipantsPage({
 	const hasAnySigned = participantsEnriched.some((p: any) => p?.status?.id === 21)
 	const canEditOperation =
 		(role === 'vendedor' || role === 'vendedor-sup') && !hasAnySigned
+	const operationProductName =
+		participantsEnriched.find((p: any) => p.participantType === 'P')?.product?.name ??
+		participantsEnriched[0]?.product?.name ??
+		''
+	const isConstrucasaOperation = operationProductName
+		? isConstrucasaProduct(operationProductName)
+		: false
+	const finalStatusId = 38
+	const primaryParticipant =
+		participantsEnriched.find((p: any) => p.participantType === 'P') ??
+		participantsEnriched[0]
+	const isOperationFinalized = primaryParticipant?.status?.id === finalStatusId
+	const showActivateDfi = canEditOperation && isConstrucasaOperation && isOperationFinalized
 
 	return (
 		<div className="flex flex-col gap-5 p-5">
@@ -137,10 +152,24 @@ export default async function OperationParticipantsPage({
 						<Undo2Icon className="mr-2" size={18} />
 						Voltar
 					</GoBackButton>
-					<div className="flex gap-2">
+					<div className="flex flex-col gap-2 items-end">
 						{canEditOperation && (
-							<Button variant="secondary" asChild>
-								<Link href={`/dps/operation/${encodeURIComponent(operationNumber)}/edit`}>Editar operação</Link>
+							<>
+								<Button variant="secondary" asChild>
+									<Link href={`/dps/operation/${encodeURIComponent(operationNumber)}/edit`}>
+										Editar operação
+									</Link>
+								</Button>
+							</>
+						)}
+						{showActivateDfi && (
+							<Button
+								variant="outline"
+								className="border-primary text-primary bg-white hover:bg-primary/5 hover:text-primary"
+								type="button"
+							>
+								<WorkflowIcon className="mr-2" size={16} />
+								Ativar fluxo DFI
 							</Button>
 						)}
 					</div>
