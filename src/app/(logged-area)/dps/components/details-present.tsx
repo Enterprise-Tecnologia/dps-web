@@ -209,8 +209,7 @@ const DetailsPresent = ({
 		: undefined
 	const requiresTeleInterviewByCapital =
 		typeof teleInterviewThreshold === 'number' &&
-		!isDfiNotApplicable &&
-		proposalData.capitalDFI > teleInterviewThreshold
+		proposalData.capitalMIP > teleInterviewThreshold
 
 	const operationStatusUi =
 		operationAggStatus === 'APPROVED'
