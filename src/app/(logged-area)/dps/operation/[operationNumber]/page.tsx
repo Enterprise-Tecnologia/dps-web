@@ -10,7 +10,6 @@ import { formatCpf } from '@/lib/utils'
 import { computeOperationStatus } from '@/utils/operation-aggregation'
 import { SquareArrowUpRightIcon, Undo2Icon, UsersIcon, WorkflowIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isConstrucasaProduct } from '@/constants'
 
 export const revalidate = 0
 export const dynamic = 'force-dynamic'
@@ -130,19 +129,13 @@ export default async function OperationParticipantsPage({
 	const hasAnySigned = participantsEnriched.some((p: any) => p?.status?.id === 21)
 	const canEditOperation =
 		(role === 'vendedor' || role === 'vendedor-sup') && !hasAnySigned
-	const operationProductName =
-		participantsEnriched.find((p: any) => p.participantType === 'P')?.product?.name ??
-		participantsEnriched[0]?.product?.name ??
-		''
-	const isConstrucasaOperation = operationProductName
-		? isConstrucasaProduct(operationProductName)
-		: false
 	const finalStatusId = 38
 	const primaryParticipant =
 		participantsEnriched.find((p: any) => p.participantType === 'P') ??
 		participantsEnriched[0]
 	const isOperationFinalized = primaryParticipant?.status?.id === finalStatusId
-	const showActivateDfi = canEditOperation && isConstrucasaOperation && isOperationFinalized
+	const isOperationInProgress = operationStatus === 'IN_PROGRESS'
+	const showActivateDfi = canEditOperation && (isOperationFinalized || isOperationInProgress)
 
 	return (
 		<div className="flex flex-col gap-5 p-5">
