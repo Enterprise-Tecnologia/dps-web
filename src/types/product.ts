@@ -33,11 +33,7 @@ export type ProductConfiguration = {
     }>;
   };
   dpsConfig?: {
-    simplifiedThreshold?: number | null; // Capital threshold para DPS simplificada
-    questions?: {
-      simplified: Array<{ code: string; question: string; type: 'text' }>;
-      complete: Array<{ code: string; question: string; type: 'yesno' | 'text' }>;
-    };
+    questions?: Array<{ code: string; description: string }>;
   };
 };
 
