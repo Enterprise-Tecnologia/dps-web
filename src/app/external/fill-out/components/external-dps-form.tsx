@@ -8,8 +8,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { UserIcon, Loader2Icon, CheckIcon, AlertCircleIcon } from 'lucide-react'
-import { diseaseNamesHabitacional, diseaseNamesHomeEquity, diseaseNamesMagHabitacional } from '@/app/(logged-area)/dps/fill-out/components/dps-form'
+import {
+  diseaseNamesHabitacional,
+  diseaseNamesHomeEquity,
+  diseaseNamesMagHabitacional,
+  diseaseNamesMagHabitacionalSimplified,
+} from '@/app/(logged-area)/dps/fill-out/components/dps-form'
 import { isMagHabitacionalProduct } from '@/constants'
+import { calculateAgeYears, getMagHabitacionalDpsMode } from '@/utils/mag-habitacional-dps'
 import { cn } from '@/lib/utils'
 
 interface ExternalDpsFormProps {
@@ -116,46 +122,97 @@ export default function ExternalDpsForm({
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
-  const isMagHabitacional = isMagHabitacionalProduct(initialProposalData.product.name);
+  const isMagHabitacional = isMagHabitacionalProduct(initialProposalData.product.name)
+  const magDpsMode = isMagHabitacional
+    ? getMagHabitacionalDpsMode(
+        calculateAgeYears(new Date(initialProposalData.customer.birthdate)),
+        initialProposalData.capitalMIP
+      )
+    : null
 
-  const [formData, setFormData] = useState<Record<string, { has: string, description: string }>>(() => {
+  const magDiseaseLabels =
+    magDpsMode === 'simplified'
+      ? diseaseNamesMagHabitacionalSimplified
+      : diseaseNamesMagHabitacional
+
+  const [formData, setFormData] = useState<Record<string, { has: string; description: string }>>(() => {
     if (initialHealthData && initialHealthData.length > 0) {
+      if (isMagHabitacional && magDpsMode && magDpsMode !== 'none') {
+        const keys = Object.keys(magDiseaseLabels)
+        return keys.reduce(
+          (acc, key) => {
+            const item = initialHealthData.find(i => i.code === key)
+            return {
+              ...acc,
+              [key]: item
+                ? {
+                    has: item.exists ? 'yes' : 'no',
+                    description: item.description || '',
+                  }
+                : { has: '', description: '' },
+            }
+          },
+          {} as Record<string, { has: string; description: string }>
+        )
+      }
       if (isMagHabitacional) {
-        return initialHealthData.reduce((acc, item) => ({
-          ...acc,
-          [item.code]: {
-            has: item.exists ? 'yes' : 'no',
-            description: item.description || ''
-          }
-        }), {});
-      } else {
-        return initialHealthData.reduce((acc, item) => ({
+        return initialHealthData.reduce(
+          (acc, item) => ({
+            ...acc,
+            [item.code]: {
+              has: item.exists ? 'yes' : 'no',
+              description: item.description || '',
+            },
+          }),
+          {}
+        )
+      }
+      return initialHealthData.reduce(
+        (acc, item) => ({
           ...acc,
           [item.code]: {
             has: item.exists ? 'yes' : '',
-            description: item.description || ''
-          }
-        }), {});
-      }
+            description: item.description || '',
+          },
+        }),
+        {}
+      )
+    }
+
+    if (isMagHabitacional && magDpsMode && magDpsMode !== 'none') {
+      return Object.keys(magDiseaseLabels).reduce(
+        (acc, key) => ({
+          ...acc,
+          [key]: { has: '', description: '' },
+        }),
+        {} as Record<string, { has: string; description: string }>
+      )
     }
 
     if (isMagHabitacional) {
-      return Object.keys(diseaseNamesMagHabitacional)
-        .reduce((acc, key) => ({
+      return Object.keys(diseaseNamesMagHabitacional).reduce(
+        (acc, key) => ({
           ...acc,
-          [key]: { has: '', description: '' }
-        }), {});
+          [key]: { has: '', description: '' },
+        }),
+        {}
+      )
     }
 
-    const productTypeDiseaseNames = (initialProposalData.product.name === 'HDI Home Equity' || initialProposalData.product.name === 'FHE Poupex');
+    const productTypeDiseaseNames =
+      initialProposalData.product.name === 'HDI Home Equity' ||
+      initialProposalData.product.name === 'FHE Poupex'
 
     return Object.keys(productTypeDiseaseNames ? diseaseNamesHomeEquity : diseaseNamesHabitacional)
       .filter(key => key !== 'telefoneContato')
-      .reduce((acc, key) => ({
-        ...acc,
-        [key]: { has: '', description: '' }
-      }), {});
-  });
+      .reduce(
+        (acc, key) => ({
+          ...acc,
+          [key]: { has: '', description: '' },
+        }),
+        {} as Record<string, { has: string; description: string }>
+      )
+  })
 
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   
@@ -187,7 +244,7 @@ export default function ExternalDpsForm({
     let hasError = false;
 
     if (isMagHabitacional) {
-      Object.keys(diseaseNamesMagHabitacional).forEach(key => {
+      Object.keys(magDiseaseLabels).forEach(key => {
         const val = formData[key];
         if (!val?.has || (val.has !== 'yes' && val.has !== 'no')) {
           newErrors[key] = true;
@@ -232,13 +289,17 @@ export default function ExternalDpsForm({
       let postData;
 
       if (isMagHabitacional) {
-        postData = Object.entries(formData).map(([key, value]) => ({
-          code: key,
-          question: diseaseNamesMagHabitacional[key as keyof typeof diseaseNamesMagHabitacional] || '',
-          exists: value.has === 'yes',
-          created: new Date().toISOString(),
-          description: value.description || ''
-        }));
+        postData = Object.keys(magDiseaseLabels).map(key => {
+          const value = formData[key] || { has: '', description: '' }
+          return {
+            code: key,
+            question:
+              magDiseaseLabels[key as keyof typeof magDiseaseLabels] || '',
+            exists: value.has === 'yes',
+            created: new Date().toISOString(),
+            description: value.description || '',
+          }
+        })
       } else {
         const productTypeDiseaseNames = (initialProposalData.product.name === 'HDI Home Equity' || initialProposalData.product.name === 'FHE Poupex');
         postData = Object.entries(formData)
@@ -450,19 +511,18 @@ export default function ExternalDpsForm({
 
   const renderFormFields = () => {
     if (isMagHabitacional) {
-      return Object.entries(diseaseNamesMagHabitacional)
-        .map(([key, question]) => (
-          <DiseaseField
-            key={key}
-            name={key}
-            label={question}
-            value={formData[key] || { has: '', description: '' }}
-            onChange={(value) => handleRadioChange(key, value)}
-            onDescriptionChange={(value) => handleDescriptionChange(key, value)}
-            error={errors[key] || false}
-            isSubmitting={isSubmitting}
-          />
-        ));
+      return Object.entries(magDiseaseLabels).map(([key, question]) => (
+        <DiseaseField
+          key={key}
+          name={key}
+          label={question}
+          value={formData[key] || { has: '', description: '' }}
+          onChange={value => handleRadioChange(key, value)}
+          onDescriptionChange={value => handleDescriptionChange(key, value)}
+          error={errors[key] || false}
+          isSubmitting={isSubmitting}
+        />
+      ))
     }
 
     const productTypeDiseaseNames = (initialProposalData.product.name === 'HDI Home Equity' || initialProposalData.product.name === 'FHE Poupex');

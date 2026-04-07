@@ -6,7 +6,7 @@ import getServerSessionAuthorization, {
 	ApiRoles,
 } from '@/hooks/getServerSessionAuthorization'
 import { PieChartCard, DonutProgressCard } from '../components/data-card'
-import { ChartConfig } from '@/components/ui/chart'
+import type { ChartConfig } from '@/components/ui/chart'
 import Link from 'next/link'
 import { DashboardDataType, getFilledDps } from './actions'
 

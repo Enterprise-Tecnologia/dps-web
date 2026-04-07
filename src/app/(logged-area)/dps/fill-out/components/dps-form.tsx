@@ -1,7 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
-import DpsHealthForm, { HealthForm, HealthFormHdiHomeEquity, HealthFormMagHabitacional } from './dps-health-form'
+import React, { useEffect, useState } from 'react'
+import DpsHealthForm, {
+	HealthForm,
+	HealthFormHdiHomeEquity,
+	HealthFormMagHabitacional,
+	HealthFormMagHabitacionalSimplified,
+	DpsHealthFormValue,
+} from './dps-health-form'
 import { UserIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import DpsAttachmentsForm, { AttachmentsForm } from './dps-attachments-form'
@@ -11,6 +17,7 @@ import { useSession } from 'next-auth/react'
 import { DpsInitialForm } from './dps-initial-form'
 import { ProposalByUid, signProposal } from '../../actions'
 import { isFhePoupexProduct, isHomeEquityProduct, isMagHabitacionalProduct } from '@/constants'
+import { calculateAgeYears, getMagHabitacionalDpsMode } from '@/utils/mag-habitacional-dps'
 
 
 export const diseaseNamesHomeEquity = {
@@ -117,6 +124,28 @@ export const diseaseNamesMagHabitacional = {
 	'31': 'Apenas para mulheres: Está grávida? Informar o período de gestação e se existiu ou existe alguma complicação.'
 };
 
+const MAG_SIMPLIFIED_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] as const
+
+/** DPS MAG simplificada (12 questões — texto próprio, distinto do formulário completo de 31 itens) */
+export const diseaseNamesMagHabitacionalSimplified = {
+	'1': 'Encontra-se com algum problema de saúde ou faz uso de algum medicamento?',
+	'2': 'Sofre ou já sofreu de doença crônica ou incurável, doenças do coração, hipertensão, circulatórias, do sangue, diabetes, pulmão, fígado, rins, infarto, acidente vascular cerebral, doenças do aparelho digestivo, algum tipo de hérnia, articulações, qualquer tipo de câncer, ou HIV?',
+	'3': 'Sofre ou sofreu de deficiências de órgãos, membros ou sentidos, incluindo doenças ortopédicas ou relacionadas a esforço repetitivo (LER e DORT)?',
+	'4': 'Fez alguma cirurgia, biópsia ou esteve internado nos últimos cinco anos? Ou está ciente de alguma condição médica que possa resultar em uma hospitalização ou cirurgia?',
+	'5': 'Está afastado(a) do trabalho ou aposentado por doença ou invalidez?',
+	'6': 'Pratica paraquedismo, motociclismo, boxe, asa delta, rodeio, alpinismo, voo livre, automobilismo, mergulho ou exerce atividade, em caráter profissional ou amador, a bordo de aeronaves, que não sejam de linhas regulares?',
+	'7': 'É fumante? A quanto tempo?',
+	'8': 'Apresenta, no momento, sintomas de gripe, febre, cansaço, tosse, coriza, dores pelo corpo, dor de cabeça, dor de garganta, falta de ar, perda de olfato, perda de paladar ou está aguardando resultado do teste da COVID19?',
+	'9': 'Foi diagnosticado(a) com infecção pelo novo CORONAVÍRUS ou COVID-19?',
+	'10': 'Apresenta, no momento, sequelas do COVID19 diferente de perda de olfato e/ou paladar?',
+	'11': 'Qual sua altura (em metros)? Exemplo: 1,80',
+	'12': 'Qual o seu peso (em kg)? Exemplo: 80',
+} as const satisfies Record<(typeof MAG_SIMPLIFIED_KEYS)[number], string>
+
+export function isMagHabitacionalSimplifiedQuestionCode(code: string): boolean {
+	return MAG_SIMPLIFIED_KEYS.includes(code as (typeof MAG_SIMPLIFIED_KEYS)[number])
+}
+
 const DpsForm = ({
 	initialProposalData,
 	initialHealthData: initialHealthDataProp,
@@ -139,10 +168,29 @@ const DpsForm = ({
 
 	const productTypeDiseaseNames = isHomeEquityProduct(initialProposalData.product.name) || isFhePoupexProduct(initialProposalData.product.name);
 
+	const isMag = isMagHabitacionalProduct(initialProposalData.product.name)
+	const magDpsMode = isMag
+		? getMagHabitacionalDpsMode(
+				calculateAgeYears(new Date(initialProposalData.customer.birthdate)),
+				initialProposalData.capitalMIP
+			)
+		: null
+
 	// Processamento dos dados de saúde inicial baseado no tipo de produto
 	const initialHealthData = initialHealthDataProp
 		? (() => {
-			const isMag = isMagHabitacionalProduct(initialProposalData.product.name);
+			if (isMag && magDpsMode === 'simplified') {
+				return initialHealthDataProp.reduce((acc, item) => {
+					if (!isMagHabitacionalSimplifiedQuestionCode(item.code)) return acc
+					return {
+						...acc,
+						[item.code]: {
+							has: item.exists ? 'yes' : 'no',
+							description: item.description ?? '',
+						},
+					}
+				}, {} as HealthFormMagHabitacionalSimplified)
+			}
 
 			if (isMag) {
 				return initialHealthDataProp.reduce((acc, item) => {
@@ -170,20 +218,39 @@ const DpsForm = ({
 		})()
 		: undefined
 
-	let initialStep: 'health' | 'attachments' | 'finished'
+	type DpsStep = 'health' | 'attachments' | 'finished' | 'sendingSignature'
 
-	if (initialProposalData.status.id === 10) initialStep = 'health'
-	else if (initialProposalData.status.id === 5) initialStep = 'attachments'
-	else initialStep = 'finished'
+	const [step, setStep] = useState<DpsStep>(() => {
+		if (initialProposalData.status.id === 5) return 'attachments'
+		if (initialProposalData.status.id === 10) {
+			if (isMag && magDpsMode === 'none') return 'sendingSignature'
+			return 'health'
+		}
+		return 'finished'
+	})
 
-	const [step, setStep] = useState<'health' | 'attachments' | 'finished'>(
-		initialStep
-	)
+	const [signSendError, setSignSendError] = useState<string | null>(null)
+
+	useEffect(() => {
+		if (step !== 'sendingSignature' || !token) return
+		let cancelled = false
+		;(async () => {
+			const r = await signProposal(token, uid)
+			if (cancelled) return
+			if (!r?.success) {
+				setSignSendError(r?.message ?? 'Não foi possível enviar a proposta para assinatura.')
+			}
+			setStep('finished')
+		})()
+		return () => {
+			cancelled = true
+		}
+	}, [step, token, uid])
 
 	const [dpsData, setDpsData] = useState<{
 		uid?: string
 		initial: DpsInitialForm
-		health: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional | null | undefined
+		health: DpsHealthFormValue | null | undefined
 		attachments: AttachmentsForm | null | undefined
 	}>({
 		uid: initialProposalData.uid,
@@ -251,7 +318,7 @@ const DpsForm = ({
 
 
 		// Omit<HealthForm, '26'>
-		async function handleHealthSubmit(v: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional) {
+		async function handleHealthSubmit(v: DpsHealthFormValue) {
 			try {
 				setDpsData(prev => ({ ...prev, health: v }))
 				const responseSign = await signProposal(token, uid)
@@ -272,7 +339,18 @@ const DpsForm = ({
 
 	let formToDisplay;
 
-	if (step === 'health') {
+	if (step === 'sendingSignature') {
+		formToDisplay = (
+			<>
+				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
+					<DpsProfileData data={dpsData.initial.profile} />
+				</div>
+				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
+					<p className="text-muted-foreground">Enviando proposta para assinatura do proponente…</p>
+				</div>
+			</>
+		)
+	} else if (step === 'health') {
 		formToDisplay = (
 			<>
 				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
@@ -284,6 +362,9 @@ const DpsForm = ({
 						proposalUid={initialProposalData.uid}
 						productName={initialProposalData.product.name}
 						autocomplete={initialHealthDataProp?.[0].updated !== undefined}
+						magHabitacionalDpsMode={
+							isMag && magDpsMode === 'simplified' ? 'simplified' : 'full'
+						}
 						onSubmit={handleHealthSubmit}
 					/>
 				</div>
@@ -315,8 +396,19 @@ const DpsForm = ({
 					<DpsProfileData data={dpsData.initial.profile} />
 				</div>
 				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
-					Preenchimento de DPS realizado com sucesso, encaminhado para
-					assinatura do proponente.{' '}
+					{signSendError ? (
+						<p className="text-destructive mb-2">{signSendError}</p>
+					) : isMag && magDpsMode === 'none' ? (
+						<p className="mb-2">
+							Esta proposta não exige DPS. Encaminhamento para assinatura do proponente
+							concluído.{' '}
+						</p>
+					) : (
+						<p className="mb-2">
+							Preenchimento de DPS realizado com sucesso, encaminhado para assinatura do
+							proponente.{' '}
+						</p>
+					)}
 					<Link href={`/dps/details/${dpsData.uid}`}>Ver detalhes</Link>
 				</div>
 			</>
