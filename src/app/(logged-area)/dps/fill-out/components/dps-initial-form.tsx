@@ -12,7 +12,13 @@ import { useSession } from 'next-auth/react'
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { InferInput, object, pipe, string, nonEmpty, optional } from 'valibot'
-import { getProponentDataByCpf, postProposalOperation, getAddressByZipcode, getParticipantsByOperation } from '../../actions'
+import {
+	getProponentDataByCpf,
+	postProposalOperation,
+	getAddressByZipcode,
+	getParticipantsByOperation,
+	signProposal,
+} from '../../actions'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DpsProfileForm, {
 	DpsProfileFormType,
@@ -56,6 +62,7 @@ import {
 	TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { getMaxAgeByProduct, getFinalAgeWithYearsErrorMessage, validateFinalAgeLimit, isMagHabitacionalProduct } from '@/constants'
+import { calculateAgeYears, getMagHabitacionalDpsMode } from '@/utils/mag-habitacional-dps'
 import { useProducts } from '@/contexts/products-context'
 import { validateFinalAgeLimitHybrid, getFinalAgeWithYearsErrorMessageConfig } from '@/utils/product-validation'
 
@@ -742,6 +749,23 @@ const DpsInitialForm = ({
 			if (!principalUid) {
 				toast.error('Operação cadastrada, mas não foi possível identificar o proponente principal.');
 				return;
+			}
+
+			const productNameAfterSave = getProductName(v.product.product);
+			if (isMagHabitacionalProduct(productNameAfterSave)) {
+				const magMode = getMagHabitacionalDpsMode(
+					calculateAgeYears(v.profile.birthdate),
+					operationValue
+				);
+				if (magMode === 'none') {
+					const signRes = await signProposal(token, principalUid);
+					if (!signRes?.success) {
+						toast.error(
+							signRes?.message ??
+								'Operação cadastrada, mas não foi possível enviar a proposta para assinatura automaticamente.'
+						);
+					}
+				}
 			}
 
 			// Reset do formulário e feedback

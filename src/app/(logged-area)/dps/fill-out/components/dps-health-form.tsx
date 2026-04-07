@@ -31,8 +31,9 @@ import { Loader2Icon } from 'lucide-react'
 import {
 	diseaseNamesHomeEquity,
 	diseaseNamesHabitacional,
-	diseaseNamesMagHabitacional
-} from './dps-form';
+	diseaseNamesMagHabitacional,
+	diseaseNamesMagHabitacionalSimplified,
+} from './dps-form'
 
 const diseaseSchema = variant(
 	'has',
@@ -174,13 +175,38 @@ const productMagHabitacional = {
 	'31': diseaseSchema
 };
 
+const productMagHabitacionalSimplified = {
+	'1': diseaseSchema,
+	'2': diseaseSchema,
+	'3': diseaseSchema,
+	'4': diseaseSchema,
+	'5': diseaseSchema,
+	'6': diseaseSchema,
+	'7': diseaseSchema,
+	'8': diseaseSchema,
+	'9': diseaseSchema,
+	'10': diseaseSchema,
+	'11': diseaseSchema,
+	'12': diseaseSchema
+};
+
 const healthForm = object(productYelumNovo)
 const healthFormHomeEquity = object(productHdiHomeEquity)
 const healthFormMagHabitacional = object(productMagHabitacional)
+const healthFormMagHabitacionalSimplified = object(productMagHabitacionalSimplified)
 
 export type HealthForm = InferInput<typeof healthForm>
 export type HealthFormHdiHomeEquity = InferInput<typeof healthFormHomeEquity>
 export type HealthFormMagHabitacional = InferInput<typeof healthFormMagHabitacional>
+export type HealthFormMagHabitacionalSimplified = InferInput<
+	typeof healthFormMagHabitacionalSimplified
+>
+
+export type DpsHealthFormValue =
+	| HealthForm
+	| HealthFormHdiHomeEquity
+	| HealthFormMagHabitacional
+	| HealthFormMagHabitacionalSimplified
 
 const DpsHealthForm = ({
 	onSubmit: onSubmitProp,
@@ -188,12 +214,14 @@ const DpsHealthForm = ({
 	productName,
 	initialHealthData,
 	autocomplete = false,
+	magHabitacionalDpsMode = 'full',
 }: {
-	onSubmit: (v: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional) => void
+	onSubmit: (v: DpsHealthFormValue) => void
 	proposalUid: string
 	productName: string
 	autocomplete?: boolean
-	initialHealthData?: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional | null
+	initialHealthData?: DpsHealthFormValue | null
+	magHabitacionalDpsMode?: 'simplified' | 'full'
 }) => {
 	const session = useSession()
 	const token = (session.data as any)?.accessToken
@@ -204,7 +232,9 @@ const DpsHealthForm = ({
 	
 	const getSchema = () => {
 		if (isMagHabitacional) {
-			return healthFormMagHabitacional;
+			return magHabitacionalDpsMode === 'simplified'
+				? healthFormMagHabitacionalSimplified
+				: healthFormMagHabitacional
 		}
 		if (isHomeEquityProduct(productName) || isFhePoupexProduct(productName)) {
 			return healthFormHomeEquity;
@@ -221,19 +251,26 @@ const DpsHealthForm = ({
 		reset,
 		watch,
 		formState: { isSubmitting, isSubmitted, errors, ...formState },
-	} = useForm<HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional>({
+	} = useForm<DpsHealthFormValue>({
 		resolver: valibotResolver(getSchema()),
 		defaultValues: autocomplete ? initialHealthData ?? undefined : undefined,
 		disabled: submittingForm,
 	})
 
-	async function onSubmit(v: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional) {
+	async function onSubmit(v: DpsHealthFormValue) {
 		console.log('Form submission started (internal)', v)
 		setSubmittingForm(true)
 
 		const getQuestionText = (key: string): string => {
 			if (isMagHabitacional) {
-				return diseaseNamesMagHabitacional[key as keyof typeof diseaseNamesMagHabitacional] || '';
+				if (magHabitacionalDpsMode === 'simplified') {
+					return (
+						diseaseNamesMagHabitacionalSimplified[
+							key as keyof typeof diseaseNamesMagHabitacionalSimplified
+						] || ''
+					)
+				}
+				return diseaseNamesMagHabitacional[key as keyof typeof diseaseNamesMagHabitacional] || ''
 			}
 			if (isHomeEquityProduct(productName) || isFhePoupexProduct(productName)) {
 				return diseaseNamesHomeEquity[key as keyof typeof diseaseNamesHomeEquity] || '';
@@ -297,7 +334,10 @@ const DpsHealthForm = ({
 
 	const getQuestions = () => {
 		if (isMagHabitacional) {
-			return Object.keys(diseaseNamesMagHabitacional);
+			if (magHabitacionalDpsMode === 'simplified') {
+				return Object.keys(diseaseNamesMagHabitacionalSimplified)
+			}
+			return Object.keys(diseaseNamesMagHabitacional)
 		}
 		if (productTypeDiseaseNames) {
 			return Object.keys(healthFormHomeEquity.entries);
@@ -307,7 +347,14 @@ const DpsHealthForm = ({
 
 	const getQuestionLabel = (key: string): string => {
 		if (isMagHabitacional) {
-			return diseaseNamesMagHabitacional[key as keyof typeof diseaseNamesMagHabitacional] || '';
+			if (magHabitacionalDpsMode === 'simplified') {
+				return (
+					diseaseNamesMagHabitacionalSimplified[
+						key as keyof typeof diseaseNamesMagHabitacionalSimplified
+					] || ''
+				)
+			}
+			return diseaseNamesMagHabitacional[key as keyof typeof diseaseNamesMagHabitacional] || ''
 		}
 		if (productTypeDiseaseNames) {
 			return diseaseNamesHomeEquity[key as keyof typeof diseaseNamesHomeEquity] || '';
@@ -380,14 +427,14 @@ function DiseaseField({
 	trigger,
 	setValue,
 }: {
-	name: keyof HealthForm | keyof HealthFormHdiHomeEquity | keyof HealthFormMagHabitacional
+	name: keyof DpsHealthFormValue
 	label: string
-	control: Control<HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional>
+	control: Control<DpsHealthFormValue>
 	watch: any
-	errors: FormState<HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional>['errors']
+	errors: FormState<DpsHealthFormValue>['errors']
 	isSubmitting: boolean
-	trigger: UseFormTrigger<HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional>
-	setValue: UseFormSetValue<HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacional>
+	trigger: UseFormTrigger<DpsHealthFormValue>
+	setValue: UseFormSetValue<DpsHealthFormValue>
 }) {
 	const has = watch(`${name}.has`)
 
