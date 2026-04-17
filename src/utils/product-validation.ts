@@ -241,7 +241,7 @@ export function getFinalAgeErrorMessageConfig(
   if (productType === 'FHE_POUPEX') {
     return `A idade final do ${participantType} não pode exceder 80 anos e 6 meses até o fim do contrato.`;
   } else if (productType === 'HOME_EQUITY') {
-    return `A idade final do ${participantType} não pode exceder 75 anos até o fim do contrato.`;
+    return `A idade final do ${participantType} não pode exceder 80 anos, 6 meses até o fim do contrato.`;
   } else {
     return `A idade final do ${participantType} não pode exceder 80 anos até o fim do contrato.`;
   }
@@ -276,7 +276,7 @@ export function getFinalAgeWithYearsErrorMessageConfig(
   if (productType === 'FHE_POUPEX') {
     return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos e 6 meses ao fim da operação.`;
   } else if (productType === 'HOME_EQUITY') {
-    return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 75 anos ao fim da operação.`;
+    return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos e 6 meses ao fim da operação.`;
   } else {
     return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos ao fim da operação.`;
   }
