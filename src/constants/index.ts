@@ -38,7 +38,7 @@ export const DPS_PRODUCTS = {
     TYPE: 'HABITACIONAL' as const
   },
   HOME_EQUITY: {
-    MAX_AGE: 75,
+    MAX_AGE: 80.5, // 80 anos + 5 meses e seis meses
     MIN_AGE: 18,
     NAMES: ['HDI Home Equity', 'Home Equity'],
     TYPE: 'HOME_EQUITY' as const
@@ -66,7 +66,7 @@ export const DPS_PRODUCTS = {
 // DPS Age Limits - Limites de idade final (anos, meses, dias) para garantir que não complete a idade limite
 export const DPS_FINAL_AGE_LIMITS = {
   HABITACIONAL: { years: 79, months: 11, days: 29 }, // Não pode ter 80 completos
-  HOME_EQUITY: { years: 74, months: 11, days: 29 }, // Não pode ter 75 completos
+  HOME_EQUITY: { years: 80, months: 5, days: 29 }, // Não pode ter mais de 80 anos, 5 meses e 29 dias
   CONSTRUCASA: { years: 79, months: 11, days: 29 }, // Não pode ter 80 completos
   FHE_POUPEX: { years: 80, months: 5, days: 29 }, // Não pode ter mais de 80 anos e 6 meses
   MAG_HABITACIONAL: { years: 80, months: 5, days: 29 } // Não pode ter mais de 80 anos, 5 meses e 29 dias
@@ -247,7 +247,7 @@ export const getFinalAgeErrorMessage = (productName: string, participantType: st
   } else if (productType === 'MAG_HABITACIONAL') {
     return `A idade final do ${participantType} não pode exceder 80 anos, 5 meses e 29 dias até o fim do contrato.`;
   } else if (productType === 'HOME_EQUITY') {
-    return `A idade final do ${participantType} não pode exceder 75 anos até o fim do contrato.`;
+    return `A idade final do ${participantType} não pode exceder 80 anos, 5 meses e 29 dias até o fim do contrato.`;
   } else {
     return `A idade final do ${participantType} não pode exceder 80 anos até o fim do contrato.`;
   }
@@ -268,7 +268,7 @@ export const getFinalAgeWithYearsErrorMessage = (productName: string, participan
   } else if (productType === 'MAG_HABITACIONAL') {
     return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos, 5 meses e 29 dias ao fim da operação.`;
   } else if (productType === 'HOME_EQUITY') {
-    return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 75 anos ao fim da operação.`;
+    return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos e 6 meses ao fim da operação.`;
   } else {
     return `A idade final do ${participantType} (${Math.round(finalAge)} anos) não pode exceder 80 anos ao fim da operação.`;
   }
