@@ -30,7 +30,7 @@ Leia esta skill ao trabalhar em `fill-out`, `constants`, validação de capital/
 | Idade final, endereço MAG/AL | `dps-initial-form.tsx` |
 | Schema DPS saúde | `dps-health-form.tsx`, questões em `dps-form.tsx` |
 | Exames MAG | `src/utils/exam-rules.ts`, UI `mag-habitacional-exams-list.tsx` |
-| Teleentrevista (limiar) | `getTeleInterviewThresholdByProduct` + uso em `details-present.tsx` |
+| Teleentrevista (limiar) | `getTeleInterviewThresholdByProduct` + uso em `details-present.tsx` — o capital avaliado é o de **representatividade** do participante: `capitalMIP × (percentageParticipation / 100)` |
 
 ## Regra de ouro
 

@@ -18,7 +18,7 @@
 | Prazo do financiamento | **1 a 420** meses |
 | Tipo de imóvel | Todas as opções **exceto** “Obra” |
 | DPS de saúde | **25** questões — mesmo conjunto que **Habitacional** (`diseaseNamesHabitacional`) |
-| Teleentrevista | Capital acima de **R$ 3.000.000** (`CONSTRUCASA`) |
+| Teleentrevista | Capital de **representatividade** acima de **R$ 3.000.000** — calculado como `proposalData.capitalMIP × (percentageParticipation / 100)` do participante em evidência (`CONSTRUCASA`) |
 
 ## Código
 
