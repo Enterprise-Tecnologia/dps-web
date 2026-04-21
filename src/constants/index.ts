@@ -171,14 +171,6 @@ export const isMagHabitacionalProduct = (productName: string): boolean => {
   return getProductType(productName) === 'MAG_HABITACIONAL';
 };
 
-// Função utilitária para determinar tipo de DPS baseado no capital
-export const getDpsTypeByCapital = (productName: string, capital: number): 'simplified' | 'complete' => {
-  if (isMagHabitacionalProduct(productName)) {
-    return capital <= 3_000_000 ? 'simplified' : 'complete';
-  }
-  return 'complete'; // Outros produtos sempre usam DPS completa
-};
-
 // Função utilitária para obter idade mínima baseado no nome do produto
 export const getMinAgeByProduct = (productName: string): number => {
   const productType = getProductType(productName);

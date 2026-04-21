@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import { getHealthDataByUid, getProposalDpsByUid } from '@/app/external/actions'
 import ExternalDpsForm from '@/app/external/fill-out/components/external-dps-form'
 import { cookies } from 'next/headers'
+import { isMagHabitacionalProduct } from '@/constants'
+import { calculateAgeYears, getMagHabitacionalDpsMode } from '@/utils/mag-habitacional-dps'
 
 export default async function ExternalDpsFormPage({
   params: { uid },
@@ -32,8 +34,17 @@ export default async function ExternalDpsFormPage({
 
   const proposalData = proposalDataRaw.data
 
-  // Redirect to success page after form submission
   const successRedirect = `/external/fill-out/form/${uid}/success`
+
+  if (isMagHabitacionalProduct(proposalData.product.name)) {
+    const magMode = getMagHabitacionalDpsMode(
+      calculateAgeYears(new Date(proposalData.customer.birthdate)),
+      proposalData.capitalMIP
+    )
+    if (magMode === 'none') {
+      redirect(`${successRedirect}?noDps=1`)
+    }
+  }
 
   return (
     <div className="max-w-screen-xl mx-auto px-4">

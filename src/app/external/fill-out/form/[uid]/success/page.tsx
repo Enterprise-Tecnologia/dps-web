@@ -4,8 +4,10 @@ import { redirect } from 'next/navigation'
 
 export default function SuccessPage({
   params: { uid },
+  searchParams,
 }: {
   params: { uid: string }
+  searchParams?: { noDps?: string }
 }) {
   // Verificar se o usuário passou pelo formulário
   const cookieStore = cookies()
@@ -36,7 +38,9 @@ export default function SuccessPage({
         
         <h1 className="text-3xl font-bold text-gray-800 mb-4">Informações enviadas com sucesso!</h1>
         <p className="text-gray-600 mb-8">
-          Seu formulário DPS foi preenchido e encaminhado com sucesso. Em breve você receberá mais informações.
+          {searchParams?.noDps === '1'
+            ? 'Para esta operação não há declaração pessoal de saúde (DPS) a preencher. Acompanhe o andamento pelo canal indicado pela seguradora ou corretor.'
+            : 'Seu formulário DPS foi preenchido e encaminhado com sucesso. Em breve você receberá mais informações.'}
         </p>
         
         <div className="mt-8 flex justify-center">

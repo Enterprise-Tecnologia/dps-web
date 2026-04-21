@@ -1,7 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
-import DpsHealthForm, { HealthForm, HealthFormHdiHomeEquity, HealthFormMagHabitacionalSimplified, HealthFormMagHabitacionalComplete } from './dps-health-form'
+import React, { useEffect, useState } from 'react'
+import DpsHealthForm, {
+	HealthForm,
+	HealthFormHdiHomeEquity,
+	HealthFormMagHabitacional,
+	HealthFormMagHabitacionalSimplified,
+	DpsHealthFormValue,
+} from './dps-health-form'
 import { UserIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import DpsAttachmentsForm, { AttachmentsForm } from './dps-attachments-form'
@@ -10,7 +16,8 @@ import MedReports from '../../components/med-reports'
 import { useSession } from 'next-auth/react'
 import { DpsInitialForm } from './dps-initial-form'
 import { ProposalByUid, signProposal } from '../../actions'
-import { isFhePoupexProduct, isHomeEquityProduct, isMagHabitacionalProduct, getDpsTypeByCapital } from '@/constants'
+import { isFhePoupexProduct, isHomeEquityProduct, isMagHabitacionalProduct } from '@/constants'
+import { calculateAgeYears, getMagHabitacionalDpsMode } from '@/utils/mag-habitacional-dps'
 
 
 export const diseaseNamesHomeEquity = {
@@ -82,13 +89,45 @@ export const diseaseNamesHabitacional = {
 
 export type DiseaseKeys = keyof typeof diseaseNamesHabitacional;
 
-// DPS Simplificada MAG Habitacional - 1 questão de texto
-export const diseaseNamesMagHabitacionalSimplified = {
-	'1': 'O proponente apresenta qualquer problema de saúde que afete suas atividades profissionais, esteve internado, fez qualquer cirurgia/biópsia nos últimos três anos ou tem ainda, conhecimento de qualquer condição médica que possa resultar em uma hospitalização ou cirurgia nos próximos meses? Não Em caso afirmativo, especificar.'
+// DPS MAG Habitacional - 31 questões (todas Sim/Não + descrição)
+export const diseaseNamesMagHabitacional = {
+	'1': 'Alguma seguradora já recusou segurar, renovar ou reintegrar, agravou, modificou ou cancelou seguro de vida em seu nome? Informe data e motivo Alegado.',
+	'2': 'Possui apólice de seguro em vigor? Se sim, especifique: seguradora, coberturas e valores de capitais.',
+	'3': 'Costuma viajar em aeronaves pequenas (táxis aéreos, aeronaves particulares, helicópteros etc)?',
+	'4': 'Você pretende realizar uma viagem internacional, seja a lazer ou a negócios, com estadia superior a 3 (três) meses nos próximos 2 (dois) anos? Especifique o país de destino.',
+	'5': 'Você é tripulante profissional ou amador de qualquer tipo de aeronave, pratica ou pretende praticar, de forma amadora ou profissional, alguma atividade considerada perigosa, tais como: mergulho (mar/rios/lagos acima de 40m de profundidade, naufrágios e mergulho em caverna), paraquedismo, motociclismo de velocidade, motocross, rodeio, alpinismo, voo livre, automobilismo, bungee jumping, luta livre ou MMA?',
+	'6': 'Algum parente faleceu antes dos 60 anos de idade? Especifique as causas.',
+	'7': 'Algum parente próximo (pais e irmãos) sofre ou já sofreu de câncer, diabetes, distúrbio do coração, rim policístico ou distúrbio mental ou nervoso, ou alguma outra doença que o tenha obrigado a consultar médico(s) para tratamento/acompanhamento, hospitalizar-se, internar-se em sanatório ou afastar-se de suas atividades normais de trabalho?',
+	'8': 'Faz uso habitual de algum medicamento?',
+	'9': 'Nos últimos 5 anos, foi internado ou realizou cirurgia?',
+	'10': 'Diabetes, hiperglicemia, hipoglicemia, intolerância a glicose?',
+	'11': 'Infarto do miocárdio, arritmia (alteração do ritmo cardíaco), sopros, endocardite, implante de stent ou safena ou qualquer doença ou anormalidade do coração?',
+	'12': 'Hipertensão arterial?',
+	'13': 'Anemia, trombose, varizes ou qualquer doença ou anormalidade no sangue ou artérias?',
+	'14': 'Tuberculose, asma, enfisema pulmonar ou qualquer outra doença ou anormalidade dos pulmões, brônquios, garganta ou do sistema respiratório?',
+	'15': 'Acidente vascular cerebral (hemorrágico ou isquêmico), epilepsia, vertigens, neurite, paralisia ou qualquer outra doença ou anormalidade do sistema nervoso?',
+	'16': 'Transtornos ansiosos, do humor ou depressivos?',
+	'17': 'Cálculo nas vias urinárias, nefrite, malformação renal ou qualquer outra doença ou anormalidade do aparelho urinário?',
+	'18': 'Miomas, cistos nos ovários, alterações nas trompas uterinas, doenças na próstata, nos testículos ou outras doenças do aparelho genital?',
+	'19': 'Doenças na tireoide ou qualquer doença endócrina (glandular)?',
+	'20': 'Doenças no estômago, intestinos, vesícula biliar ou fígado (hepatite B ou C, cirrose...)?',
+	'21': 'Artrite, gota, hérnia de disco ou outras alterações na coluna vertebral, ou qualquer outra doença ou anormalidade das articulações, dos músculos ou ossos?',
+	'22': 'Alguma doença ou anormalidade dos olhos, ouvidos, pele, garganta ou nariz?',
+	'23': 'Algum tipo de tumor benigno ou maligno (câncer, linfoma, melanoma...)?',
+	'24': 'Deficiência de membros ou paralisias?',
+	'25': 'Doenças imunológicas, HIV ou complicações relacionadas a este?',
+	'26': 'Nos últimos 5 anos, você foi aconselhado a realizar algum exame ou tratamento que ainda não foi realizado?',
+	'27': 'Nos últimos 10 anos, fez uso de anfetaminas, sedativos, maconha, cocaína ou barbitúricos?',
+	'28': 'Nos últimos 10 anos, fez tratamento ou frequentou instituição para tratamento de alcoolismo ou de drogas?',
+	'29': 'Nos últimos 5 anos, você apresentou dificuldade de respirar, dor ou pressão no peito?',
+	'30': 'Alguma outra doença, distúrbio ou informação não mencionada acima?',
+	'31': 'Apenas para mulheres: Está grávida? Informar o período de gestação e se existiu ou existe alguma complicação.'
 };
 
-// DPS Completa MAG Habitacional - 12 questões (10 Sim/Não + 2 texto)
-export const diseaseNamesMagHabitacionalComplete = {
+const MAG_SIMPLIFIED_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'] as const
+
+/** DPS MAG simplificada (12 questões — texto próprio, distinto do formulário completo de 31 itens) */
+export const diseaseNamesMagHabitacionalSimplified = {
 	'1': 'Encontra-se com algum problema de saúde ou faz uso de algum medicamento?',
 	'2': 'Sofre ou já sofreu de doença crônica ou incurável, doenças do coração, hipertensão, circulatórias, do sangue, diabetes, pulmão, fígado, rins, infarto, acidente vascular cerebral, doenças do aparelho digestivo, algum tipo de hérnia, articulações, qualquer tipo de câncer, ou HIV?',
 	'3': 'Sofre ou sofreu de deficiências de órgãos, membros ou sentidos, incluindo doenças ortopédicas ou relacionadas a esforço repetitivo (LER e DORT)?',
@@ -100,8 +139,12 @@ export const diseaseNamesMagHabitacionalComplete = {
 	'9': 'Foi diagnosticado(a) com infecção pelo novo CORONAVÍRUS ou COVID-19?',
 	'10': 'Apresenta, no momento, sequelas do COVID19 diferente de perda de olfato e/ou paladar?',
 	'11': 'Qual sua altura (em metros)? Exemplo: 1,80',
-	'12': 'Qual o seu peso (em kg)? Exemplo: 80'
-};
+	'12': 'Qual o seu peso (em kg)? Exemplo: 80',
+} as const satisfies Record<(typeof MAG_SIMPLIFIED_KEYS)[number], string>
+
+export function isMagHabitacionalSimplifiedQuestionCode(code: string): boolean {
+	return MAG_SIMPLIFIED_KEYS.includes(code as (typeof MAG_SIMPLIFIED_KEYS)[number])
+}
 
 const DpsForm = ({
 	initialProposalData,
@@ -125,17 +168,31 @@ const DpsForm = ({
 
 	const productTypeDiseaseNames = isHomeEquityProduct(initialProposalData.product.name) || isFhePoupexProduct(initialProposalData.product.name);
 
+	const isMag = isMagHabitacionalProduct(initialProposalData.product.name)
+	const magDpsMode = isMag
+		? getMagHabitacionalDpsMode(
+				calculateAgeYears(new Date(initialProposalData.customer.birthdate)),
+				initialProposalData.capitalMIP
+			)
+		: null
+
 	// Processamento dos dados de saúde inicial baseado no tipo de produto
 	const initialHealthData = initialHealthDataProp
 		? (() => {
-			// Para MAG Habitacional, verificar se é simplificada ou completa
-			const isMag = isMagHabitacionalProduct(initialProposalData.product.name);
-			const magDpsType = isMag && initialProposalData.capitalMIP
-				? getDpsTypeByCapital(initialProposalData.product.name, initialProposalData.capitalMIP)
-				: 'complete';
+			if (isMag && magDpsMode === 'simplified') {
+				return initialHealthDataProp.reduce((acc, item) => {
+					if (!isMagHabitacionalSimplifiedQuestionCode(item.code)) return acc
+					return {
+						...acc,
+						[item.code]: {
+							has: item.exists ? 'yes' : 'no',
+							description: item.description ?? '',
+						},
+					}
+				}, {} as HealthFormMagHabitacionalSimplified)
+			}
 
-			if (isMag && magDpsType === 'simplified') {
-				// Para DPS simplificada, os dados vêm como array de objetos com exists e description
+			if (isMag) {
 				return initialHealthDataProp.reduce((acc, item) => {
 					return {
 						...acc,
@@ -144,9 +201,8 @@ const DpsForm = ({
 							description: item.description ?? '',
 						},
 					};
-				}, {} as HealthFormMagHabitacionalSimplified);
+				}, {} as HealthFormMagHabitacional);
 			} else {
-				// Para outros produtos (incluindo MAG completa), usar processamento padrão
 				return Object.keys(productTypeDiseaseNames ? diseaseNamesHomeEquity : diseaseNamesHabitacional).reduce((acc, curr, i) => {
 					if (initialHealthDataProp[i])
 						return {
@@ -162,20 +218,39 @@ const DpsForm = ({
 		})()
 		: undefined
 
-	let initialStep: 'health' | 'attachments' | 'finished'
+	type DpsStep = 'health' | 'attachments' | 'finished' | 'sendingSignature'
 
-	if (initialProposalData.status.id === 10) initialStep = 'health'
-	else if (initialProposalData.status.id === 5) initialStep = 'attachments'
-	else initialStep = 'finished'
+	const [step, setStep] = useState<DpsStep>(() => {
+		if (initialProposalData.status.id === 5) return 'attachments'
+		if (initialProposalData.status.id === 10) {
+			if (isMag && magDpsMode === 'none') return 'sendingSignature'
+			return 'health'
+		}
+		return 'finished'
+	})
 
-	const [step, setStep] = useState<'health' | 'attachments' | 'finished'>(
-		initialStep
-	)
+	const [signSendError, setSignSendError] = useState<string | null>(null)
+
+	useEffect(() => {
+		if (step !== 'sendingSignature' || !token) return
+		let cancelled = false
+		;(async () => {
+			const r = await signProposal(token, uid)
+			if (cancelled) return
+			if (!r?.success) {
+				setSignSendError(r?.message ?? 'Não foi possível enviar a proposta para assinatura.')
+			}
+			setStep('finished')
+		})()
+		return () => {
+			cancelled = true
+		}
+	}, [step, token, uid])
 
 	const [dpsData, setDpsData] = useState<{
 		uid?: string
 		initial: DpsInitialForm
-		health: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacionalSimplified | HealthFormMagHabitacionalComplete | null | undefined
+		health: DpsHealthFormValue | null | undefined
 		attachments: AttachmentsForm | null | undefined
 	}>({
 		uid: initialProposalData.uid,
@@ -219,11 +294,6 @@ const DpsForm = ({
 	const diseaseList: Partial<Record<DiseaseKeys, { has: boolean; description: string }>> = dpsData.health
 		? Object.entries(dpsData.health)
 				.filter(([key, value]) => {
-					// Para formulários yes/no, verificar se has === 'yes'
-					// Para formulários de texto simples (MAG simplificada), verificar se há texto
-					if (typeof value === 'string') {
-						return value.trim() !== '';
-					}
 					if (value && typeof value === 'object' && 'has' in value) {
 						return value.has === 'yes';
 					}
@@ -231,23 +301,12 @@ const DpsForm = ({
 				})
 				.reduce(
 					(acc, [currKey, currValue]) => {
-						// Para formulários yes/no
 						if (currValue && typeof currValue === 'object' && 'has' in currValue) {
 							return {
 								...acc,
 								[currKey]: {
 									has: currValue.has === 'yes',
 									description: currValue.description ?? '',
-								},
-							};
-						}
-						// Para formulários de texto simples
-						if (typeof currValue === 'string') {
-							return {
-								...acc,
-								[currKey]: {
-									has: currValue.trim() !== '',
-									description: currValue,
 								},
 							};
 						}
@@ -259,7 +318,7 @@ const DpsForm = ({
 
 
 		// Omit<HealthForm, '26'>
-		async function handleHealthSubmit(v: HealthForm | HealthFormHdiHomeEquity | HealthFormMagHabitacionalSimplified | HealthFormMagHabitacionalComplete) {
+		async function handleHealthSubmit(v: DpsHealthFormValue) {
 			try {
 				setDpsData(prev => ({ ...prev, health: v }))
 				const responseSign = await signProposal(token, uid)
@@ -280,7 +339,18 @@ const DpsForm = ({
 
 	let formToDisplay;
 
-	if (step === 'health') {
+	if (step === 'sendingSignature') {
+		formToDisplay = (
+			<>
+				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
+					<DpsProfileData data={dpsData.initial.profile} />
+				</div>
+				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
+					<p className="text-muted-foreground">Enviando proposta para assinatura do proponente…</p>
+				</div>
+			</>
+		)
+	} else if (step === 'health') {
 		formToDisplay = (
 			<>
 				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
@@ -292,11 +362,10 @@ const DpsForm = ({
 						proposalUid={initialProposalData.uid}
 						productName={initialProposalData.product.name}
 						autocomplete={initialHealthDataProp?.[0].updated !== undefined}
+						magHabitacionalDpsMode={
+							isMag && magDpsMode === 'simplified' ? 'simplified' : 'full'
+						}
 						onSubmit={handleHealthSubmit}
-						capitalMIP={initialProposalData.capitalMIP}
-						dpsType={isMagHabitacionalProduct(initialProposalData.product.name) && initialProposalData.capitalMIP 
-							? getDpsTypeByCapital(initialProposalData.product.name, initialProposalData.capitalMIP)
-							: undefined}
 					/>
 				</div>
 			</>
@@ -327,8 +396,19 @@ const DpsForm = ({
 					<DpsProfileData data={dpsData.initial.profile} />
 				</div>
 				<div className="p-9 mt-8 w-full max-w-7xl mx-auto bg-white rounded-3xl">
-					Preenchimento de DPS realizado com sucesso, encaminhado para
-					assinatura do proponente.{' '}
+					{signSendError ? (
+						<p className="text-destructive mb-2">{signSendError}</p>
+					) : isMag && magDpsMode === 'none' ? (
+						<p className="mb-2">
+							Esta proposta não exige DPS. Encaminhamento para assinatura do proponente
+							concluído.{' '}
+						</p>
+					) : (
+						<p className="mb-2">
+							Preenchimento de DPS realizado com sucesso, encaminhado para assinatura do
+							proponente.{' '}
+						</p>
+					)}
 					<Link href={`/dps/details/${dpsData.uid}`}>Ver detalhes</Link>
 				</div>
 			</>
