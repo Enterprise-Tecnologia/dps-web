@@ -207,9 +207,18 @@ const DetailsPresent = ({
 	const teleInterviewThreshold = proposalData?.product?.name
 		? getTeleInterviewThresholdByProduct(proposalData.product.name)
 		: undefined
+	const capitalMIPRepresentatividade = React.useMemo(() => {
+		if (participants && participants.length > 0) {
+			const current = participants.find(p => p.uid === uid)
+			if (current != null) {
+				return proposalData.capitalMIP * (current.percentageParticipation / 100)
+			}
+		}
+		return proposalData.capitalMIP
+	}, [participants, uid, proposalData.capitalMIP])
 	const requiresTeleInterviewByCapital =
 		typeof teleInterviewThreshold === 'number' &&
-		proposalData.capitalMIP > teleInterviewThreshold
+		capitalMIPRepresentatividade > teleInterviewThreshold
 
 	const operationStatusUi =
 		operationAggStatus === 'APPROVED'
